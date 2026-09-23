@@ -159,3 +159,121 @@ def test_update_user_preferences():
         "notifications_enabled": False,
     })
     assert response.status_code == 200
+
+
+# ── Chat ──────────────────────────────────────────────────────────────────
+
+def test_chat_endpoint_exists():
+    """Verify the chat endpoint is registered and accepts POST."""
+    response = client.post("/api/v1/chat", json={
+        "message": "Hello",
+    })
+    # May fail due to no AWS credentials, but should not be 404 or 405
+    assert response.status_code != 404
+    assert response.status_code != 405
+
+
+def test_chat_invalid_request():
+    """Empty message should be rejected by validation."""
+    response = client.post("/api/v1/chat", json={
+        "message": "",
+    })
+    assert response.status_code == 422  # Pydantic validation error
+
+
+def test_chat_missing_body():
+    """Missing body should be rejected."""
+    response = client.post("/api/v1/chat")
+    assert response.status_code == 422
+
+
+def test_chat_delete_conversation():
+    """Delete conversation endpoint should work."""
+    response = client.delete("/api/v1/chat/nonexistent-id")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["cleared"] is False
+    assert data["conversation_id"] == "nonexistent-id"
+
+
+def test_chatbot_tools_execute():
+    """Verify chatbot tools can execute against real services."""
+    from app.services.chatbot_tools import execute_tool
+
+    # Test get_current_traffic tool
+    result, actions = execute_tool("get_current_traffic", {})
+    assert "Traffic data" in result or "segments" in result.lower()
+    assert isinstance(actions, list)
+
+    # Test with road filter
+    result, actions = execute_tool("get_current_traffic", {"road_name": "MG Road"})
+    assert isinstance(result, str)
+
+    # Test get_weather tool
+    result, actions = execute_tool("get_weather", {})
+    assert "temperature" in result.lower() or "weather" in result.lower()
+
+    # Test get_traffic_incidents tool
+    result, actions = execute_tool("get_traffic_incidents", {})
+    assert isinstance(result, str)
+
+    # Test get_traffic_prediction tool
+    result, actions = execute_tool("get_traffic_prediction", {"horizon_minutes": 30})
+    assert isinstance(result, str)
+
+    # Test get_traffic_analytics tool
+    result, actions = execute_tool("get_traffic_analytics", {})
+    assert "congestion" in result.lower() or "analytics" in result.lower()
+
+    # Test get_alerts tool
+    result, actions = execute_tool("get_alerts", {})
+    assert isinstance(result, str)
+
+    # Test find_route tool
+    result, actions = execute_tool("find_route", {
+        "origin": "Koramangala",
+        "destination": "Whitefield",
+    })
+    assert "route" in result.lower() or "km" in result.lower()
+
+    # Test unknown tool
+    result, actions = execute_tool("nonexistent_tool", {})
+    assert "unknown" in result.lower() or "Unknown" in result
+
+
+def test_chatbot_conversation_store():
+    """Test the conversation store directly."""
+    from app.services.chatbot import ConversationStore
+
+    store = ConversationStore(max_messages=5)
+
+    # Empty conversation
+    assert store.get_messages("test-123") == []
+    assert store.exists("test-123") is False
+
+    # Add messages
+    store.add_message("test-123", "user", "Hello")
+    assert store.exists("test-123") is True
+    assert len(store.get_messages("test-123")) == 1
+
+    store.add_message("test-123", "assistant", "Hi there!")
+    assert len(store.get_messages("test-123")) == 2
+
+    # Clear
+    store.clear("test-123")
+    assert store.exists("test-123") is False
+
+    # Test pruning
+    store2 = ConversationStore(max_messages=3)
+    for i in range(5):
+        store2.add_message("prune-test", "user", f"Message {i}")
+    assert len(store2.get_messages("prune-test")) == 3
+
+
+def test_chat_root_endpoint_includes_chat():
+    """Verify the root endpoint lists the chat API."""
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert "chat" in data["endpoints"]
+    assert data["endpoints"]["chat"] == "/api/v1/chat"
