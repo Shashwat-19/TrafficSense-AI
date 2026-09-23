@@ -3,7 +3,6 @@ TrafficSense AI — Application configuration.
 """
 
 from pydantic_settings import BaseSettings
-from typing import List
 
 
 class Settings(BaseSettings):
@@ -19,10 +18,13 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # ── CORS ──────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:8000",
-    ]
+    # Accepts comma-separated origins string from .env
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS into a list of strings."""
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # ── Bangalore defaults ────────────────────────────────────────────────
     DEFAULT_LAT: float = 12.9716
@@ -43,9 +45,6 @@ class Settings(BaseSettings):
     # ── External API timeouts ─────────────────────────────────────────────
     API_TIMEOUT_SECONDS: int = 10
     API_MAX_RETRIES: int = 3
-
-
-
 
 
 settings = Settings()
