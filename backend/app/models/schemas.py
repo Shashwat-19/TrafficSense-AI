@@ -244,3 +244,33 @@ class AppResponse(BaseModel):
     data_mode: str = Field(description="'live' or 'demo'")
     last_updated: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     source: str = ""
+
+
+# ── Chat ───────────────────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str = Field(description="'user' or 'assistant'")
+    content: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000, description="User message")
+    conversation_id: Optional[str] = Field(None, description="Optional conversation ID for context")
+
+
+class ChatAction(BaseModel):
+    type: str = Field(description="Action type: FOCUS_MAP, SHOW_ROUTE, SHOW_INCIDENTS, etc.")
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    zoom: Optional[int] = None
+    data: Optional[Any] = None
+
+
+class ChatResponse(BaseModel):
+    response: str
+    conversation_id: str
+    sources: List[str] = []
+    tools_used: List[str] = []
+    actions: List[ChatAction] = []
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))

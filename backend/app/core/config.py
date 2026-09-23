@@ -46,5 +46,13 @@ class Settings(BaseSettings):
     API_TIMEOUT_SECONDS: int = 10
     API_MAX_RETRIES: int = 3
 
+    # ── Chatbot / AWS Bedrock ─────────────────────────────────────────────
+    AWS_REGION: str = "us-east-1"
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    BEDROCK_MODEL_ID: str = "amazon.nova-lite-v1:0"
+    CHATBOT_MAX_HISTORY: int = 20
+    CHATBOT_REQUEST_TIMEOUT: int = 30
+
 
 settings = Settings()

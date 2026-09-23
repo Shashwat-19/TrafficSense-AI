@@ -17,6 +17,8 @@ from app.services.route import RouteService
 from app.services.analytics import AnalyticsService
 from app.services.alerts import AlertsService
 from app.services.user import UserService
+from app.services.chatbot import ChatbotService
+from app.models.schemas import ChatRequest, ChatResponse
 
 router = APIRouter()
 
@@ -30,6 +32,7 @@ route_service = RouteService()
 analytics_service = AnalyticsService()
 alerts_service = AlertsService()
 user_service = UserService()
+chatbot_service = ChatbotService()
 
 
 # ── Health ─────────────────────────────────────────────────────────────────
@@ -130,3 +133,58 @@ async def update_user_preferences(prefs: dict):
     """Update user preferences."""
     data, mode = user_service.update_preferences(prefs)
     return AppResponse(data=data, data_mode=mode, source="users")
+
+
+# ── Chat ───────────────────────────────────────────────────────────────────
+
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    tags=["Chat"],
+    summary="Send a message to TrafficSense AI chatbot",
+    description=(
+        "Send a natural-language message and receive an AI-powered response. "
+        "The chatbot can access live traffic data, predictions, incidents, "
+        "weather, routes, and analytics through integrated tools."
+    ),
+    responses={
+        200: {
+            "description": "Successful chat response",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "response": "Traffic on Outer Ring Road is currently ...",
+                        "conversation_id": "abc123",
+                        "sources": ["get_current_traffic"],
+                        "tools_used": ["get_current_traffic"],
+                        "actions": [{"type": "FOCUS_MAP", "latitude": 12.9537, "longitude": 77.7012, "zoom": 14}],
+                        "timestamp": "2025-01-01T12:00:00Z",
+                    }
+                }
+            },
+        },
+        400: {"description": "Invalid request"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def chat(req: ChatRequest):
+    """Chat with TrafficSense AI."""
+    result = await chatbot_service.chat(
+        message=req.message,
+        conversation_id=req.conversation_id,
+    )
+    return ChatResponse(**result)
+
+
+@router.delete(
+    "/chat/{conversation_id}",
+    tags=["Chat"],
+    summary="Clear a chat conversation",
+)
+async def clear_chat(conversation_id: str):
+    """Clear conversation history for a given ID."""
+    cleared = chatbot_service.clear_conversation(conversation_id)
+    return {
+        "cleared": cleared,
+        "conversation_id": conversation_id,
+    }

@@ -15,7 +15,7 @@ app = FastAPI(
     title="TrafficSense AI",
     description=(
         "Cloud-Based Intelligent Traffic Monitoring, Prediction, "
-        "Route Analysis and Conversational Assistance Platform — "
+        "Route Analysis and Conversational AI Assistance Platform — "
         "focused on Bangalore, India."
     ),
     version=settings.APP_VERSION,
@@ -59,5 +59,6 @@ def root():
             "alerts": "/api/v1/alerts",
             "user_preferences": "/api/v1/users/preferences",
             "health": "/api/v1/health",
+            "chat": "/api/v1/chat",
         },
     }
