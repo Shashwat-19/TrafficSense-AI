@@ -356,6 +356,8 @@ Open your browser at **http://localhost:3000**.
 │   │   ├── services/
 │   │   │   ├── alerts.py                # Congestion and hazard alerts service
 │   │   │   ├── analytics.py             # Hourly trends and aggregate analytics
+│   │   │   ├── chatbot.py               # AI chatbot service (Bedrock Converse API)
+│   │   │   ├── chatbot_tools.py         # Chatbot tool definitions and execution
 │   │   │   ├── incident.py              # Road incidents and hazard tracking
 │   │   │   ├── prediction.py            # ML speed forecast engine
 │   │   │   ├── route.py                 # Alternative pathfinder & delay analysis
@@ -364,7 +366,7 @@ Open your browser at **http://localhost:3000**.
 │   │   │   └── weather.py               # Weather patterns & OpenWeather client
 │   │   └── main.py                      # FastAPI app entry point & CORS
 │   ├── tests/
-│   │   └── test_api.py                  # Pytest test suite (15 tests)
+│   │   └── test_api.py                  # Pytest test suite (22 tests)
 │   ├── Dockerfile                       # Python 3.11 slim container
 │   ├── requirements.txt                 # Backend Python dependencies
 │   └── train_model.py                   # XGBoost model training pipeline
@@ -374,6 +376,7 @@ Open your browser at **http://localhost:3000**.
 │   │   ├── app/
 │   │   │   ├── alerts/page.tsx          # Real-time alerts feed
 │   │   │   ├── analytics/page.tsx       # Recharts traffic analytics dashboard
+│   │   │   ├── chat/page.tsx            # AI chatbot assistant interface
 │   │   │   ├── incidents/page.tsx       # Filterable incident directory
 │   │   │   ├── map/page.tsx             # Interactive Leaflet traffic map
 │   │   │   ├── predictions/page.tsx     # ML forecast horizon interface
@@ -504,6 +507,8 @@ All responses are wrapped in a standard `AppResponse` envelope:
 | `GET` | `/api/v1/alerts` | Active traffic and hazard alert items | `alert_type`, `severity` |
 | `GET` | `/api/v1/users/preferences` | Fetch user locations and settings | None |
 | `PUT` | `/api/v1/users/preferences` | Update user notification and units state | Body: `UserPreferences` (JSON) |
+| `POST` | `/api/v1/chat` | Send message to AI chatbot | Body: `ChatRequest` (JSON) |
+| `DELETE` | `/api/v1/chat/{conversation_id}` | Clear a chat conversation | None |
 
 ### Interactive API Explorers
 When the backend is active, explore and test the API directly:
@@ -525,27 +530,113 @@ The frontend is implemented with the Next.js 15 App Router and organized into 8 
 | **Route Planner** | `/routes` | Trip planner with Bangalore landmark presets (Koramangala, Indiranagar, Electronic City, Whitefield, Airport, etc.) and congestion-avoiding route comparisons. |
 | **Incidents** | `/incidents` | Filterable incident feed with category and severity dropdowns (Accidents, Road Closures, Construction). |
 | **Alerts Feed** | `/alerts` | Chronological notifications with read/unread toggles and urgency color-coding. |
+| **AI Assistant** | `/chat` | Conversational AI chatbot with real-time traffic data access, tool calling, conversation memory, quick action buttons, and streaming-style UI. |
 | **Settings** | `/settings` | Live/Demo mode badge, API connectivity status, saved locations, recent trip queries, and display units. |
 
 ---
 
-## AI Chatbot Integration Boundary
+## AI Chatbot Integration
 
-TrafficSense.AI is designed to decouple traffic intelligence from conversational interfaces. A separate AI chatbot client can connect to the platform as an external consumer:
+TrafficSense.AI includes a **fully integrated AI chatbot** powered by **AWS Bedrock** (Amazon Nova Lite), with tool-calling capabilities that connect directly to all existing backend services.
+
+### Architecture
 
 ```
-[User] <--> [AI Chatbot Agent] <--(HTTP GET/POST)--> [TrafficSense.AI REST API (/api/v1/*)]
+User → Chat UI (/chat) → POST /api/v1/chat → ChatbotService → AWS Bedrock Converse API
+                                                    ↓ (tool calls)
+                                          TrafficSense Backend Services
+                                          ├── TrafficService
+                                          ├── IncidentService
+                                          ├── WeatherService
+                                          ├── PredictionService
+                                          ├── RouteService
+                                          ├── AnalyticsService
+                                          └── AlertsService
 ```
 
-### Integration Contract
-- **Protocol**: Standard REST over HTTP (`application/json`).
-- **Data Exposed**: Current road speeds (`/api/v1/traffic/current`), active hazards (`/api/v1/traffic/incidents`), ML forecasts (`/api/v1/predictions`), weather conditions (`/api/v1/weather`), and route alternatives (`/api/v1/routes`).
-- **Query Types Supported by API**:
-  - *"What is the traffic like on Outer Ring Road right now?"* $\rightarrow$ Query `/api/v1/traffic/current`
-  - *"How bad will Silk Board congestion be in 30 minutes?"* $\rightarrow$ Query `/api/v1/predictions?horizon=30&segment_id=seg-001`
-  - *"Are there any accidents near Whitefield?"* $\rightarrow$ Query `/api/v1/traffic/incidents?severity=HIGH`
-  - *"What is the fastest route from Koramangala to the Airport?"* $\rightarrow$ Query `POST /api/v1/routes`
-- **Isolation**: The chatbot client codebase is decoupled from this repository. No internal chatbot code is modified here, ensuring strict separation of concerns.
+### How `app.py` Was Integrated
+
+The original `app.py` was a standalone Streamlit chatbot using AWS Bedrock's `invoke_model` API with no tool calling. The integration:
+
+1. **Extracted** the LLM logic from the Streamlit UI into `backend/app/services/chatbot.py`
+2. **Upgraded** from Bedrock `invoke_model` to the **Converse API** with native tool calling
+3. **Connected** 7 tools to existing TrafficSense services (no duplicate services created)
+4. **Added** conversation memory with a sliding window (configurable, default 20 messages)
+5. **Exposed** via `POST /api/v1/chat` and `DELETE /api/v1/chat/{conversation_id}`
+6. **Built** a native chat UI at `/chat` using the existing Shadcn/Tailwind design system
+
+### Chatbot API
+
+```bash
+# Send a message
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "How is traffic on Outer Ring Road?"
+  }'
+
+# Continue a conversation
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "What about 30 minutes from now?",
+    "conversation_id": "abc-123-def"
+  }'
+
+# Clear a conversation
+curl -X DELETE http://localhost:8000/api/v1/chat/abc-123-def
+```
+
+**Response format:**
+```json
+{
+  "response": "Traffic on Outer Ring Road (Marathahalli) is currently ...",
+  "conversation_id": "abc-123-def",
+  "sources": ["get_current_traffic"],
+  "tools_used": ["get_current_traffic"],
+  "actions": [{"type": "FOCUS_MAP", "latitude": 12.9537, "longitude": 77.7012, "zoom": 14}],
+  "timestamp": "2026-09-23T12:00:00Z"
+}
+```
+
+### Required Environment Variables
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `AWS_REGION` | No | `us-east-1` | AWS region for Bedrock |
+| `AWS_ACCESS_KEY_ID` | Yes* | `""` | AWS access key (*or use `~/.aws/credentials`) |
+| `AWS_SECRET_ACCESS_KEY` | Yes* | `""` | AWS secret key (*or use `~/.aws/credentials`) |
+| `BEDROCK_MODEL_ID` | No | `amazon.nova-lite-v1:0` | Bedrock model ID |
+| `CHATBOT_MAX_HISTORY` | No | `20` | Max conversation messages retained |
+
+### Available Tools
+
+| Tool | Backend Service | Description |
+|---|---|---|
+| `get_current_traffic` | TrafficService | Real-time traffic for 25 Bangalore roads |
+| `get_traffic_incidents` | IncidentService | Active accidents, closures, construction |
+| `get_weather` | WeatherService | Temperature, rain, humidity, visibility |
+| `get_traffic_prediction` | PredictionService | ML predictions at 15/30/60 min horizons |
+| `find_route` | RouteService | Route alternatives with congestion info |
+| `get_traffic_analytics` | AnalyticsService | Overall congestion, top bottlenecks |
+| `get_alerts` | AlertsService | Active warnings and notifications |
+
+### Conversation Handling
+
+- Each conversation gets a unique UUID
+- Context is maintained across messages (e.g. "What about ORR?" → "What about 30 mins from now?")
+- History is pruned to the last N messages (configurable via `CHATBOT_MAX_HISTORY`)
+- Conversations are stored in-memory (session-based)
+
+### Troubleshooting
+
+| Issue | Solution |
+|---|---|
+| "AI service not configured" | Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in `.env` |
+| "Access to AI model denied" | Enable Amazon Nova Lite access in AWS Bedrock console |
+| "Rate limited" | Wait and retry; consider requesting higher Bedrock quotas |
+| Chatbot returns generic errors | Check backend logs for detailed error messages |
+| Tools return "demo" data | This is expected without TomTom/OpenWeather API keys |
 
 ---
 
@@ -588,7 +679,7 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-**Results**: `15 passed in ~1.4s` (100% test pass rate across health, traffic, incidents, weather, prediction horizons, routes, analytics, alerts, and user preferences).
+**Results**: `22 passed in ~3.6s` (100% test pass rate across health, traffic, incidents, weather, prediction horizons, routes, analytics, alerts, user preferences, chat API, chatbot tools, and conversation store).
 
 ### Frontend Build & Type-Check
 The frontend uses Turbopack and strict TypeScript validation:
@@ -681,7 +772,9 @@ TrafficSense.AI incorporates a structured JSON logging middleware (`backend/app/
 - [x] Interactive Leaflet.js Bangalore traffic map
 - [x] Recharts traffic analytics and incident visualization
 - [x] Docker and Docker Compose deployment orchestration
-- [x] 15/15 unit and integration API test coverage
+- [x] 22/22 unit and integration API test coverage
+- [x] AI chatbot integration with AWS Bedrock (tool-calling, conversation memory)
+- [x] Chat UI integrated into main frontend (`/chat` page)
 
 ### In Progress
 - [ ] Database integration (PostgreSQL with SQLAlchemy / Alembic migrations)

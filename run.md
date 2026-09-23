@@ -1,12 +1,12 @@
 # Running TrafficSense AI: Complete Step-by-Step Guide
 
-This guide walks you through setting up and running both the **FastAPI Backend** and the **Next.js 15 Frontend** locally or via Docker.
+This guide walks you through setting up and running the entire **TrafficSense AI** platform — including the **FastAPI Backend**, the **Next.js Frontend**, and the integrated **AWS Bedrock AI Traffic Assistant**.
 
 ---
 
 ## 📋 Prerequisites
 
-Before starting, ensure you have the following installed on your system:
+Ensure you have the following installed on your system:
 
 | Tool | Minimum Version | Check Command |
 |---|---|---|
@@ -14,18 +14,19 @@ Before starting, ensure you have the following installed on your system:
 | **Node.js** | 18.18+ (20+ recommended) | `node -v` |
 | **npm** | 9+ | `npm -v` |
 | **Docker** *(optional)* | 20+ | `docker --version` |
+| **AWS Account** *(for AI Chatbot)* | Bedrock access enabled | (Amazon Nova Lite `amazon.nova-lite-v1:0` in `us-east-1`) |
 
 ---
 
-## 🚀 Option 1: Local Development (Recommended)
+## 🚀 Quick Run (Local Development)
 
-Running the services locally in separate terminal windows gives you live hot-reloading for both backend and frontend.
+Running both services in two separate terminals enables full hot-reloading for rapid development.
 
 ### Step 1: Start the Backend (Terminal 1)
 
 1. **Navigate to the backend directory:**
    ```bash
-   cd /Users/shashwat./Desktop/project-class/backend
+   cd backend
    ```
 
 2. **Create and activate a Python virtual environment:**
@@ -45,19 +46,36 @@ Running the services locally in separate terminal windows gives you live hot-rel
      .\venv\Scripts\Activate.ps1
      ```
 
-3. **Install backend dependencies:**
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set up the environment file:**
+4. **Configure environment variables:**
+   If you haven't created a `.env` file yet, copy from `.env.example`:
    ```bash
    cp .env.example .env
    ```
-   > 💡 **Note on Demo Mode:** You do **not** need API keys to run the application. If `TOMTOM_API_KEY` and `OPENWEATHER_API_KEY` are left blank, TrafficSense AI automatically operates in **DEMO mode** with realistic, time-varying Bangalore traffic simulation and trained ML predictions.
+   Open `backend/.env` and configure your credentials:
+   ```env
+   # Application environment
+   APP_ENV=development
+   CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 
-5. **(Optional) Train or re-train the XGBoost ML model:**
-   A pre-trained model artifact is already provided at `app/models/artifacts/xgb_speed_model.pkl`. If you wish to retrain it:
+   # Optional Live Data APIs (leave blank to run in simulated DEMO mode)
+   TOMTOM_API_KEY=
+   OPENWEATHER_API_KEY=
+
+   # AI Chatbot (AWS Bedrock)
+   AWS_REGION=us-east-1
+   AWS_ACCESS_KEY_ID=your_aws_access_key_id
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+   BEDROCK_MODEL_ID=amazon.nova-lite-v1:0
+   ```
+   *(Note: You can also use credentials configured via `aws configure` in `~/.aws/credentials`)*
+
+5. **(Optional) Train or retrain ML model:**
+   A pre-trained model artifact is included at `app/models/artifacts/xgb_speed_model.pkl`. To retrain:
    ```bash
    python train_model.py
    ```
@@ -67,10 +85,10 @@ Running the services locally in separate terminal windows gives you live hot-rel
    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
    ```
 
-7. **Verify backend is running:**
-   - Health check: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
-   - Interactive Swagger API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - ReDoc documentation: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+7. **Verify the backend:**
+   - **Health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
+   - **Interactive API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **ReDoc documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
@@ -78,7 +96,7 @@ Running the services locally in separate terminal windows gives you live hot-rel
 
 1. **Open a new terminal and navigate to the frontend directory:**
    ```bash
-   cd /Users/shashwat./Desktop/project-class/frontend
+   cd frontend
    ```
 
 2. **Install Node dependencies:**
@@ -86,46 +104,73 @@ Running the services locally in separate terminal windows gives you live hot-rel
    npm install
    ```
 
-3. **Set up the local environment file:**
+3. **Configure frontend environment:**
    ```bash
    cp .env.local.example .env.local
    ```
-   *By default, this points `NEXT_PUBLIC_API_URL` to `http://localhost:8000`.*
+   Verify that `frontend/.env.local` contains:
+   ```env
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   ```
 
-4. **Start the Next.js development server:**
+4. **Launch the development server:**
    ```bash
    npm run dev
    ```
 
-5. **Open the web dashboard in your browser:**
-   👉 **[http://localhost:3000](http://localhost:3000)**
+5. **Open the application:**
+   👉 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
-## 🐳 Option 2: Run with Docker Compose (Single Command)
+## 🤖 Using the AI Traffic Assistant
 
-If you have Docker and Docker Compose installed, you can launch the entire stack (Backend + Frontend) together:
+The AI Assistant is accessible directly within the web application:
+
+1. In the left sidebar, click on **AI Assistant** or navigate to **[http://localhost:3000/chat](http://localhost:3000/chat)**.
+2. You can ask natural-language questions such as:
+   - *"How is traffic on Outer Ring Road right now?"*
+   - *"What is the traffic prediction for 30 minutes ahead?"*
+   - *"Find me the best route from Koramangala to Whitefield avoiding congestion."*
+   - *"What is the weather and are there any active accidents?"*
+   - *"Give me an overview of traffic analytics and bottlenecks in Bangalore."*
+3. The chatbot uses **AWS Bedrock Converse API** with tool calling to query live/demo traffic data, predictions, routes, and incident services in real-time.
+4. **Context Memory:** The chatbot preserves conversation context, allowing natural follow-ups like *"What about 30 minutes from now?"*
+
+You can also test the Chatbot API directly using `curl`:
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How is traffic on Outer Ring Road?"}'
+```
+
+---
+
+## 🐳 Option 2: Run with Docker Compose
+
+To launch both the backend and frontend simultaneously inside Docker containers:
 
 1. **From the project root directory:**
    ```bash
    cd /Users/shashwat./Desktop/project-class
    ```
 
-2. **Ensure backend `.env` exists:**
+2. **Ensure backend `.env` is configured:**
    ```bash
    cp backend/.env.example backend/.env
+   # Add your AWS credentials and optional API keys in backend/.env
    ```
 
-3. **Build and launch containers:**
+3. **Build and start containers:**
    ```bash
    docker-compose up --build
    ```
 
-4. **Access the services:**
+4. **Access the application:**
    - **Frontend App:** [http://localhost:3000](http://localhost:3000)
    - **Backend API & Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
 
-5. **To stop the containers:**
+5. **Stop containers:**
    ```bash
    docker-compose down
    ```
@@ -134,16 +179,16 @@ If you have Docker and Docker Compose installed, you can launch the entire stack
 
 ## 🧪 Running Automated Tests
 
-### 1. Backend Pytest Suite
-Test all 15 endpoints, ML prediction schemas, and error handling:
+### 1. Backend Test Suite (Pytest)
+Runs all 22 tests covering core services, predictions, routes, analytics, chatbot tools, conversation memory, and API endpoints:
 ```bash
 cd backend
 source venv/bin/activate
 pytest tests/ -v
 ```
 
-### 2. Frontend Production Build & Type-Check
-Verify strict TypeScript compilation, ESLint rules, and static route generation:
+### 2. Frontend Production Build & Lint
+Ensures all static routes, TypeScript types, and UI components compile with zero errors:
 ```bash
 cd frontend
 npm run build
@@ -151,52 +196,59 @@ npm run build
 
 ---
 
-## 🌐 Application Page Sitemap
+## 🌐 Application Sitemap
 
-Once the frontend is running at [http://localhost:3000](http://localhost:3000), you can explore the following pages via the sidebar navigation:
-
-| Page | URL Path | What It Does |
+| View | URL Path | Description |
 |---|---|---|
-| **Dashboard** | `/` | Real-time congestion KPIs, active incident counts, average city speed, weather widget, top congested roads list, and recent alert feeds. |
-| **Traffic Map** | `/map` | Interactive Bangalore Leaflet map showing 25 monitored road segments (color-coded by congestion) and live incident markers with interactive popups. |
-| **Analytics** | `/analytics` | Visualizations using Recharts: Congestion distribution pie chart, 24-hour speed/congestion trends, top bottlenecked corridors, and free-flow speed comparisons. |
-| **Predictions** | `/predictions` | XGBoost machine learning speed and congestion forecasts across 15, 30, and 60-minute horizons. |
-| **Route Planner** | `/routes` | Multi-alternative route analysis between Bangalore key hubs (Koramangala, Indiranagar, Electronic City, Whitefield, Airport, Silk Board, etc.) with congestion avoidance. |
+| **Dashboard** | `/` | Real-time congestion KPIs, active incident counts, average city speed, weather widget, top congested roads, and recent alerts. |
+| **Traffic Map** | `/map` | Interactive Bangalore Leaflet map showing 25 monitored road segments (color-coded by congestion) and live incident markers. |
+| **Analytics** | `/analytics` | Recharts charts: Congestion distribution pie chart, 24-hour speed/congestion trends, top bottlenecked corridors, and free-flow comparisons. |
+| **Predictions** | `/predictions` | XGBoost ML speed and congestion predictions across 15, 30, and 60-minute horizons. |
+| **Route Planner** | `/routes` | Multi-alternative route analysis between Bangalore key hubs with congestion-avoidance routing. |
 | **Incidents** | `/incidents` | Categorized list of accidents, roadworks, and closures with filter controls by severity and incident type. |
 | **Alerts** | `/alerts` | Alert notification feed with read/unread toggles and urgency classifications (Critical, Warning, Info). |
-| **Settings** | `/settings` | System health status, live/demo mode indicator, user saved locations, recent trip histories, and map unit preferences. |
+| **AI Assistant** | `/chat` | Integrated conversational AI chatbot with real-time tool calling, conversation history, and quick prompts. |
+| **Settings** | `/settings` | System health status, live/demo mode indicator, saved locations, recent trip queries, and display preferences. |
 
 ---
 
-## ⚙️ Configuration & Live Mode Setup
+## ⚙️ Configuration Options
 
-### Switching to Live Data (TomTom & OpenWeather)
-To enable live traffic and weather instead of mock data:
-1. Open `backend/.env`
-2. Add your API keys:
-   ```env
-   TOMTOM_API_KEY=your_actual_tomtom_api_key_here
-   OPENWEATHER_API_KEY=your_actual_openweather_api_key_here
-   ```
-3. Restart the backend server. The UI will automatically switch the badge from `● DEMO` to `● LIVE`.
+### Backend (`backend/.env`)
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TOMTOM_API_KEY` | *(empty)* | Optional TomTom API key for live traffic flow |
+| `OPENWEATHER_API_KEY` | *(empty)* | Optional OpenWeather key for live weather data |
+| `APP_ENV` | `development` | Environment mode (`development` or `production`) |
+| `CORS_ORIGINS` | `http://localhost:3000,http://localhost:8000` | Allowed origins |
+| `AWS_REGION` | `us-east-1` | AWS region for Bedrock |
+| `AWS_ACCESS_KEY_ID` | *(empty)* | AWS access key for Bedrock |
+| `AWS_SECRET_ACCESS_KEY` | *(empty)* | AWS secret key for Bedrock |
+| `BEDROCK_MODEL_ID` | `amazon.nova-lite-v1:0` | Amazon Bedrock model ID |
+| `CHATBOT_MAX_HISTORY` | `20` | Max messages stored in conversation memory window |
 
 ---
 
 ## ❓ Troubleshooting
 
-- **Port 8000 or 3000 already in use:**
-  - Find what process is using the port:
-    ```bash
-    lsof -i :8000
-    lsof -i :3000
-    ```
-  - Kill the process or launch on an alternative port:
-    ```bash
-    uvicorn app.main:app --port 8001
-    # and update NEXT_PUBLIC_API_URL in frontend/.env.local accordingly
-    ```
+### 1. Port 8000 or 3000 already in use
+If a process is already running on port 8000 or 3000:
+- **Free port 8000:**
+  ```bash
+  lsof -ti:8000 | xargs kill -9
+  ```
+- **Free port 3000:**
+  ```bash
+  lsof -ti:3000 | xargs kill -9
+  ```
 
-- **Frontend cannot connect to Backend:**
-  - Ensure the backend is active at `http://localhost:8000`.
-  - Check that `frontend/.env.local` contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
-  - Verify backend health at `curl http://localhost:8000/api/v1/health`.
+### 2. Chatbot reports "AI service is not configured"
+- Check that `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are populated in `backend/.env`.
+- Ensure your IAM user has permissions for `bedrock:InvokeModel` and `bedrock:Converse`.
+- Verify model access for **Amazon Nova Lite** in the AWS Bedrock console in `us-east-1`.
+
+### 3. Frontend fails to fetch backend data
+- Ensure backend is running at `http://localhost:8000`.
+- Verify `frontend/.env.local` contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+- Test backend health directly: `curl http://localhost:8000/api/v1/health`.
