@@ -10,6 +10,7 @@ import type {
   AnalyticsData,
   Alert,
   UserPreferences,
+  ChatResponse,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -137,5 +138,54 @@ export async function updateUserPreferences(prefs: Partial<UserPreferences>) {
 
 export async function healthCheck() {
   const res = await fetch(`${API_BASE}/api/v1/health`);
+  return res.json();
+}
+
+// ── Chat ────────────────────────────────────────────────────────────────
+
+export async function sendChatMessage(
+  message: string,
+  conversationId?: string
+): Promise<ChatResponse> {
+  const url = `${API_BASE}/api/v1/chat`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000); // 60s for AI responses
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        conversation_id: conversationId,
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      throw new ApiError(text, res.status);
+    }
+
+    return await res.json();
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new ApiError("Chat request timed out", 408);
+    }
+    throw new ApiError(
+      err instanceof Error ? err.message : "Network error",
+      0
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function clearChatConversation(
+  conversationId: string
+): Promise<{ cleared: boolean; conversation_id: string }> {
+  const url = `${API_BASE}/api/v1/chat/${conversationId}`;
+  const res = await fetch(url, { method: "DELETE" });
   return res.json();
 }

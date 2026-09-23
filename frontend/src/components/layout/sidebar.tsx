@@ -10,6 +10,7 @@ import {
   Route, 
   AlertTriangle, 
   BellRing, 
+  MessageSquare,
   Settings 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ const navItems = [
   { name: 'Route Planner', href: '/routes', icon: Route },
   { name: 'Incidents', href: '/incidents', icon: AlertTriangle },
   { name: 'Alerts', href: '/alerts', icon: BellRing },
+  { name: 'AI Assistant', href: '/chat', icon: MessageSquare },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

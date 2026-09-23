@@ -176,3 +176,39 @@ export interface AppResponse<T = unknown> {
   last_updated: string;
   source: string;
 }
+
+// ── Chat ───────────────────────────────────────────────────────────────────
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  sources?: string[];
+  tools_used?: string[];
+  actions?: ChatAction[];
+  isLoading?: boolean;
+  isError?: boolean;
+}
+
+export interface ChatAction {
+  type: "FOCUS_MAP" | "SHOW_ROUTE" | "SHOW_INCIDENTS" | "SHOW_ANALYTICS" | "SHOW_PREDICTION";
+  latitude?: number;
+  longitude?: number;
+  zoom?: number;
+  data?: unknown;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_id?: string;
+}
+
+export interface ChatResponse {
+  response: string;
+  conversation_id: string;
+  sources: string[];
+  tools_used: string[];
+  actions: ChatAction[];
+  timestamp: string;
+}
