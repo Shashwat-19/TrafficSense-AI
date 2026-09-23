@@ -105,7 +105,7 @@ export default function AlertsPage() {
                       <p className="text-sm text-muted-foreground">{alert.message}</p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                         {alert.road_name && <span>📍 {alert.road_name}</span>}
-                        <span>🕐 {timeAgo(alert.created_at)}</span>
+                        <span suppressHydrationWarning>🕐 {timeAgo(alert.created_at)}</span>
                       </div>
                     </div>
                     <Button

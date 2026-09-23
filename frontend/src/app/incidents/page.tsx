@@ -136,7 +136,7 @@ export default function IncidentsPage() {
                       <p className="text-sm text-muted-foreground">{inc.description}</p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                         {inc.road_name && <span>📍 {inc.road_name}</span>}
-                        <span>🕐 {timeAgo(inc.start_time)}</span>
+                        <span suppressHydrationWarning>🕐 {timeAgo(inc.start_time)}</span>
                       </div>
                     </div>
                   </div>
