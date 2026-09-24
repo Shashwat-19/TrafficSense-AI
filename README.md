@@ -460,8 +460,11 @@ Open `http://localhost:3000` or visit `http://localhost:3000/chat`.
 │   │   └── types/index.ts               # TypeScript interfaces
 │   ├── Dockerfile
 │   └── package.json
+├── .dockerignore
 ├── .gitignore
-├── docker-compose.yml
+├── Dockerfile                           # Multi-stage root container (Backend + Frontend)
+├── docker-compose.yml                   # Multi-service composition
+├── docker-entrypoint.sh                 # Container startup & process supervision
 ├── LICENSE
 ├── README.md
 └── run.md                               # Complete operational runbook
@@ -659,17 +662,27 @@ Result: Clean Turbopack production build with zero TypeScript errors across all 
 
 ## Deployment
 
-- **Backend** (`backend/Dockerfile`) — `python:3.11-slim`, production wheels, exposes port 8000, runs Uvicorn.
-- **Frontend** (`frontend/Dockerfile`) — multi-stage `node:18-alpine`, bundles `.next` standalone output, exposes port 3000.
-- **Orchestration** (`docker-compose.yml`) — bridges both services with healthchecks.
+### Option 1: Multi-Container Orchestration (`docker-compose.yml`)
+
+- **Backend** (`backend/Dockerfile`) — `python:3.11-slim`, exposes port 8000, built-in health check.
+- **Frontend** (`frontend/Dockerfile`) — multi-stage `node:20-alpine`, exposes port 3000.
+- **Orchestration** (`docker-compose.yml`) — launches both services with health check dependencies.
 
 ```bash
-docker-compose up -d
+docker-compose up --build -d
+```
+
+### Option 2: Unified Single-Container (`Dockerfile`)
+
+Builds both frontend and backend into a single production image managed by `docker-entrypoint.sh`:
+
+```bash
+docker build -t trafficsense-ai .
+docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai
 ```
 
 **Cloud targets:**
-- Backend: AWS ECS / App Runner, Google Cloud Run, DigitalOcean App Platform.
-- Frontend: Vercel, AWS Amplify, or containerized ECS.
+- AWS ECS / App Runner, Google Cloud Run, DigitalOcean App Platform, Render, or Railway.
 
 ---
 
