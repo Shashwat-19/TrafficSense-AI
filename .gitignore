@@ -11,6 +11,7 @@ __pycache__/
 .env.production
 aws.md
 *.credentials
+task.md
 
 # Build outputs
 .next/
