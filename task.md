@@ -1,1179 +1,915 @@
-You are Claude Opus 4.6 Thinking acting as a senior/principal full-stack engineer, AI engineer, backend architect, and integration engineer.
+# TrafficSense AI — Full Repository Audit, Testing, Bug Fixing & Stabilization
 
-I have an existing project called:
+You are Google Jules acting as a senior/principal software engineer, ML engineer, backend engineer, frontend engineer, QA engineer, and cloud engineer.
 
-# TrafficSense AI
+Repository:
 
-It is an intelligent traffic monitoring, prediction, analytics, route-planning, weather, and AI-assisted transportation platform.
+https://github.com/Shashwat-19/TrafficSense-AI
 
-The main TrafficSense platform is already implemented.
+Project:
 
-I have now added my chatbot implementation into the repository as:
+TrafficSense AI — a cloud-based intelligent traffic monitoring, prediction, analytics, route-planning, incident/alert monitoring, weather-aware platform with an integrated AI traffic assistant.
 
-`app.py`
-
-Your task is to FULLY INTEGRATE this chatbot into the existing TrafficSense AI application and make the complete system actually work end-to-end.
+Your task is to thoroughly inspect this repository, run the application and tests, identify actual bugs/issues, fix them, and leave the repository in a stable, working state.
 
 IMPORTANT:
 
-Do NOT simply embed `app.py` as an iframe or create a fake chatbot UI.
+Do NOT assume the code is broken.
 
-I want the existing chatbot logic to become a properly integrated part of the TrafficSense architecture.
+Do NOT rewrite the project unnecessarily.
 
-Do not destroy or unnecessarily rewrite existing working functionality.
+First inspect and understand the existing implementation.
 
----
+Use the existing architecture whenever possible.
 
-# 1. FIRST — AUDIT EVERYTHING
+Your goal is:
 
-Before making changes, inspect the entire repository.
-
-Start with:
-
-```bash
-pwd
-find . -maxdepth 3 -type f | sort
-```
-
-Then inspect:
-
-- `app.py`
-- frontend structure
-- backend structure
-- existing API routes
-- existing services
-- existing traffic APIs
-- ML/prediction implementation
-- weather implementation
-- route implementation
-- analytics implementation
-- database layer
-- environment configuration
-- `package.json`
-- Python dependency files
-- Docker configuration
-- README
-- existing chatbot dependencies
-
-Do NOT immediately modify files.
-
-First understand how the current application works.
-
-Pay particular attention to `app.py`.
-
-Determine:
-
-- What framework it uses
-- Whether it is Streamlit, Flask, FastAPI, Gradio, or something else
-- How the chatbot receives messages
-- How it generates responses
-- What LLM/model/provider it uses
-- What environment variables it expects
-- What tools/functions it currently has
-- Whether it already has traffic-related functionality
-- Whether it accesses external APIs
-- Whether it has its own frontend
-- Whether it has its own backend
-- Whether it maintains conversation state
-- Whether it has session/user state
-- What dependencies it requires
-
-Do not assume anything about `app.py`.
+AUDIT → RUN → TEST → IDENTIFY → FIX → VERIFY → DOCUMENT
 
 ---
 
-# 2. GOAL ARCHITECTURE
+# 1. REPOSITORY AUDIT
 
-The final architecture should be:
+Start by inspecting the entire repository.
 
-```text
-                    TRAFFICSENSE AI
-                         │
-              ┌──────────┴──────────┐
-              │                     │
-         Web Frontend          Chat Interface
-              │                     │
-              └──────────┬──────────┘
-                         │
-                  TrafficSense API
-                         │
-        ┌────────────────┼─────────────────┐
-        │                │                 │
-   Traffic Service   Prediction       Weather
-        │                │                 │
-   TomTom API          ML Model       Weather API
-        │
-        ├──────────── Route Service
-        │
-        ├──────────── Incident Service
-        │
-        ├──────────── Analytics Service
-        │
-        └──────────── Alert Service
-                         │
-                    Data Layer
-```
+Check:
 
-The chatbot should be another consumer of the SAME backend services.
+- README.md
+- run.md
+- task.md
+- app.py
+- backend/
+- frontend/
+- docker-compose.yml
+- Dockerfiles
+- environment examples
+- tests
+- ML artifacts
+- configuration
+- API routes
+- frontend pages
+- shared components
+- chatbot implementation
+- chatbot tools
+- database/storage logic
 
-Conceptually:
+Create a mental map of the project before editing anything.
 
-```text
+Pay special attention to:
+
+backend/app/main.py
+
+backend/app/api/
+
+backend/app/services/
+
+backend/app/models/
+
+backend/tests/
+
+frontend/src/app/
+
+frontend/src/components/
+
+frontend/src/lib/
+
+app.py
+
+---
+
+# 2. CURRENT EXPECTED ARCHITECTURE
+
+The intended architecture is:
+
 User
- │
- ▼
-TrafficSense Chat UI
- │
- ▼
-Chatbot Service
- │
- ▼
-TrafficSense Backend APIs / Services
- │
- ├── Current Traffic
- ├── Predictions
- ├── Weather
- ├── Incidents
- ├── Routes
- ├── Analytics
- └── Alerts
-```
+↓
+Next.js Frontend
+↓
+FastAPI Backend
+↓
+Traffic / Weather / Incident / Route / Analytics / Prediction Services
+↓
+External APIs + ML Model + Storage
 
-The chatbot must NOT duplicate traffic business logic.
+The AI assistant should use the SAME backend services.
+
+Do not duplicate business logic.
+
+The chatbot must not become a second independent traffic system.
 
 ---
 
-# 3. VERY IMPORTANT — PRESERVE THE EXISTING SYSTEM
+# 3. APPLICATIONS TO VERIFY
 
-The existing TrafficSense platform has already been developed.
+Verify every major user-facing page:
 
-Therefore:
+/
 
-DO NOT:
+Dashboard
 
-- rewrite the entire backend
-- replace the existing frontend
-- replace working APIs unnecessarily
-- delete working components
-- create duplicate traffic services
-- create duplicate prediction systems
-- create duplicate weather services
-- hardcode fake responses
-- hardcode fake traffic statistics
-- replace the existing architecture merely because you prefer another architecture
+/map
 
-Instead:
+Traffic Map
 
-INSPECT → UNDERSTAND → INTEGRATE → TEST.
+/analytics
 
-Reuse existing services whenever possible.
+Analytics
 
----
+/predictions
 
-# 4. UNDERSTAND app.py
+Predictions
 
-Read the entire `app.py`.
+/routes
 
-Create an internal integration assessment.
+Route Planner
 
-Determine:
+/incidents
 
-### Framework
+Incidents
 
-For example:
+/alerts
 
-```text
-Streamlit
-Flask
-FastAPI
-Gradio
-LangChain
-LlamaIndex
-custom Python
-```
+Alerts
 
-### Model
+/chat
 
-Determine whether it uses:
+AI Assistant
 
-- Amazon Bedrock
-- Claude
-- OpenAI
-- Gemini
-- local model
-- another provider
+/settings
 
-### Chat pipeline
+Settings
 
-Understand:
+Every page should:
 
-```text
-User message
-→ preprocessing
-→ LLM
-→ tools
-→ response
-```
-
-### Existing tools
-
-Identify every tool/function already available to the chatbot.
-
-For example:
-
-```text
-get_traffic()
-get_weather()
-get_route()
-predict_traffic()
-```
-
-Do not recreate these if equivalent TrafficSense backend services already exist.
+- load
+- render correctly
+- communicate with the backend
+- handle loading
+- handle errors
+- handle empty states
+- not contain broken links
+- not throw browser console errors
+- not contain dead buttons
+- not crash when APIs fail
 
 ---
 
-# 5. INTEGRATION STRATEGY
+# 4. BACKEND AUDIT
 
-Choose the integration architecture based on what `app.py` actually contains.
+Inspect the FastAPI backend.
 
-Preferred architecture:
+Check:
 
-```text
-Frontend
-   ↓
-TrafficSense Backend
-   ↓
-Chatbot Service
-   ↓
-LLM
-   ↓
-TrafficSense Internal Services
-```
+- application startup
+- route registration
+- dependency loading
+- environment handling
+- Pydantic validation
+- service architecture
+- exception handling
+- CORS
+- API responses
+- status codes
+- async/sync usage
+- logging
+- configuration
 
-If `app.py` is currently a standalone UI application such as Streamlit, separate the chatbot logic from its UI.
+Verify:
 
-For example:
+GET /api/v1/health
 
-```text
-chatbot/
-    app.py
-    service.py
-    tools.py
-    prompts.py
-```
+and all other registered API endpoints.
 
-However, ONLY refactor `app.py` when necessary.
+Use Swagger:
 
-Preserve the original chatbot behavior.
+/docs
 
-The goal is to expose its functionality through a clean API.
+and verify that documented endpoints actually work.
 
 ---
 
-# 6. CREATE CHAT API
+# 5. TRAFFIC SERVICE
 
-The TrafficSense backend should expose a chat endpoint.
+Audit:
 
-Prefer:
+backend/app/services/traffic.py
 
-```http
-POST /api/v1/chat
-```
+Check:
 
-Request:
+- API requests
+- timeout handling
+- response validation
+- missing fields
+- invalid provider responses
+- congestion calculation
+- stale data handling
+- demo mode
+- caching
+- coordinates
+- road-segment mapping
+- timestamps
 
-```json
-{
-  "message": "How is traffic on Outer Ring Road right now?",
-  "conversation_id": "optional-id"
-}
-```
+Ensure no fake traffic is accidentally presented as live data.
 
-Response should be structured, for example:
+If DEMO mode exists:
 
-```json
-{
-  "response": "Traffic on Outer Ring Road is currently...",
-  "conversation_id": "abc123",
-  "sources": [],
-  "tools_used": [],
-  "timestamp": "..."
-}
-```
+Clearly identify DEMO mode in the UI.
 
-Adapt this structure to the existing backend architecture.
-
-Do not expose internal implementation details.
+Do not silently mix demo and live data.
 
 ---
 
-# 7. CHATBOT TOOL INTEGRATION
+# 6. WEATHER SERVICE
 
-This is the most important part.
+Audit weather integration.
 
-The chatbot should be capable of using the existing TrafficSense functionality.
+Check:
 
-Connect it to the existing services/APIs.
+- API key handling
+- location handling
+- response validation
+- missing values
+- timeout
+- invalid API response
+- fallback behavior
+- UI display
 
-Potential tools:
-
-```text
-get_current_traffic
-get_traffic_incidents
-get_traffic_prediction
-get_weather
-find_route
-get_traffic_analytics
-get_area_traffic
-get_alerts
-```
-
-For example:
-
-User:
-
-"How is traffic near Silk Board?"
-
-The chatbot should:
-
-```text
-User
- ↓
-LLM
- ↓
-get_current_traffic("Silk Board")
- ↓
-TrafficSense traffic service
- ↓
-TomTom API/cache
- ↓
-structured result
- ↓
-LLM
- ↓
-natural-language answer
-```
-
-It must NOT invent the traffic information.
+Verify that frontend weather values actually originate from the backend.
 
 ---
 
-# 8. USE EXISTING BACKEND SERVICES
+# 7. INCIDENT SYSTEM
 
-If the repository already has something like:
+Audit:
 
-```text
-traffic_service.py
-prediction_service.py
-weather_service.py
-route_service.py
-analytics_service.py
-```
+backend/app/services/incident.py
 
-the chatbot should call those services directly where architecturally appropriate.
+and:
 
-Do NOT create:
+frontend incident pages.
 
-```text
-chatbot_traffic_service.py
-chatbot_weather_service.py
-chatbot_prediction_service.py
-```
+Verify:
 
-just for the chatbot.
+- incident loading
+- filtering
+- severity
+- location
+- timestamps
+- map integration
+- empty state
+- DEMO/live separation
 
-There should be ONE source of truth.
+Make sure incident information does not crash the map.
 
 ---
 
-# 9. CHATBOT CONTEXT
+# 8. ALERT SYSTEM
 
-The chatbot should understand the TrafficSense domain.
+Audit:
 
-It should be able to answer questions such as:
+backend/app/services/alerts.py
 
-```text
-What's the traffic like in Bangalore right now?
+and:
 
-How is traffic on ORR?
+frontend/src/app/alerts/
 
-What areas have severe congestion?
+Verify:
 
-What will traffic look like on ORR in 30 minutes?
+- alert retrieval
+- unread/read behavior
+- severity
+- timestamps
+- alert counts
+- UI synchronization
+- refresh behavior
 
-Is it raining near Electronic City?
+Check whether the alert count can become inconsistent with actual data.
 
-Which route has less congestion?
-
-Show me today's traffic trend.
-
-Why is traffic heavy in this area?
-
-Are there any incidents nearby?
-```
-
-The chatbot should use tools/data rather than hallucinating answers.
-
-If the required data is unavailable, it should clearly say so.
+Fix any state-management bugs.
 
 ---
 
-# 10. MAP / UI INTEGRATION
+# 9. ROUTE PLANNER
 
-The chatbot should not only return text if the existing frontend supports richer interaction.
+Audit:
 
-Design the response format so the frontend can optionally receive structured actions.
+backend/app/services/route.py
 
-For example:
+and:
 
-```json
-{
-  "response": "...",
-  "actions": [
-    {
-      "type": "FOCUS_MAP",
-      "latitude": 12.9352,
-      "longitude": 77.6245,
-      "zoom": 14
-    }
-  ]
-}
-```
+frontend/src/app/routes/
 
-Possible future actions:
+Verify:
 
-```text
-FOCUS_MAP
-SHOW_ROUTE
-SHOW_INCIDENTS
-SHOW_ANALYTICS
-SHOW_PREDICTION
-```
+- origin selection
+- destination selection
+- validation
+- route calculation
+- multiple route results
+- congestion information
+- travel time
+- delay
+- map visualization if implemented
+- avoid-high-congestion option
 
-Only implement actions that can actually be supported by the current frontend.
+Check for:
 
-Do not create fake interactions.
+- hardcoded route results
+- invalid assumptions
+- incorrect calculations
+- broken UI state
+- routes that do not correspond to the selected origin/destination
+
+If DEMO mode is intentional, make that explicit.
 
 ---
 
-# 11. CHAT UI
+# 10. ANALYTICS
 
-Integrate the chatbot into the main TrafficSense website.
+Audit:
 
-It should feel like a native part of the product.
+backend/app/services/analytics.py
 
-Possible design:
+and:
 
-- Chat button in the main navigation
-- Floating assistant button
-- Dedicated `/chat` page
-- Chat panel/drawer
+frontend/src/app/analytics/
 
-Choose the architecture that best matches the existing UI.
+Verify:
 
-The chat UI should support:
+- congestion calculations
+- average speed
+- segment count
+- incidents
+- hourly pattern
+- top congested roads
+- free-flow comparison
+- chart rendering
+- empty datasets
+- division-by-zero problems
+- invalid aggregation
+- inconsistent numbers between dashboard and analytics
 
-- message history
-- user messages
-- assistant messages
-- loading state
-- error state
-- retry
-- scrolling
-- Enter to send
-- Shift+Enter for newline
-- clear conversation
-- conversation ID
-- responsive mobile layout
+IMPORTANT:
 
-Do not create a completely separate visual system.
+The same source data should produce consistent metrics across dashboard, analytics, map and predictions.
 
-Use the existing TrafficSense design system.
+Look specifically for contradictory values.
 
 ---
 
-# 12. STREAMING
+# 11. MACHINE LEARNING
 
-If the chatbot/model supports streaming, implement streaming responses.
+Audit:
 
-Preferred:
+backend/app/services/prediction.py
 
-```text
-Frontend
- ↓
-POST /api/v1/chat
- ↓
-Backend
- ↓
-LLM streaming
- ↓
-Frontend receives tokens
-```
+backend/train_model.py
 
-Possible implementation:
+backend/app/models/artifacts/
 
-- Server-Sent Events
-- streaming HTTP response
+Check:
 
-If streaming is not supported by the current chatbot implementation, use normal request/response.
+- model loading
+- missing artifact handling
+- model compatibility
+- input feature ordering
+- preprocessing consistency
+- prediction horizon
+- output validation
+- confidence calculation
+- congestion classification
+- error handling
 
-Do not break working functionality just to add streaming.
+Verify that the model artifact actually matches the feature schema expected by inference.
+
+Check for:
+
+- data leakage
+- incorrect feature names
+- wrong ordering
+- NaN values
+- impossible predictions
+- negative speeds
+- inconsistent units
+
+Do not retrain the model unless necessary.
+
+If the existing model is valid, preserve it.
 
 ---
 
-# 13. CONVERSATION MEMORY
+# 12. CHATBOT
 
-Preserve conversation context.
+Audit the integrated chatbot.
 
-At minimum:
+Inspect:
 
-```text
-conversation_id
-messages
-```
+app.py
 
-Example:
+backend/app/services/chatbot.py
 
-User:
+backend/app/services/chatbot_tools.py
 
-"What's traffic like on ORR?"
+frontend/src/app/chat/
 
-Assistant answers.
+Verify:
 
-User:
+- AWS Bedrock configuration
+- model configuration
+- tool calling
+- traffic tool
+- prediction tool
+- weather tool
+- incident tool
+- route tool
+- analytics tool
+- conversation memory
+- context handling
+- error handling
+- missing credentials
+- frontend/backend communication
+
+Test actual questions such as:
+
+"How is traffic on Outer Ring Road?"
 
 "What about 30 minutes from now?"
 
-The chatbot should understand that "what about" refers to ORR.
+"Are there any incidents near Silk Board?"
 
-Do not store unlimited conversation history blindly.
+"What's the weather in Bangalore?"
 
-Use a reasonable context/window strategy.
+"Find a less congested route from Electronic City to Hebbal."
 
-If database persistence already exists, integrate with it.
+The chatbot must obtain factual data from backend services.
 
-Otherwise implement session-based conversation storage with a clean abstraction.
-
----
-
-# 14. ENVIRONMENT VARIABLES
-
-Inspect `app.py` for all required credentials.
-
-Do NOT hardcode them.
-
-Create/update:
-
-```text
-.env.example
-```
-
-Possible variables:
-
-```env
-TOMTOM_API_KEY=
-OPENWEATHER_API_KEY=
-
-AWS_REGION=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-
-BEDROCK_MODEL_ID=
-```
-
-Only add variables actually required.
-
-Never commit real secrets.
-
-Check Git history and `.gitignore` if necessary.
+It must not fabricate live traffic information.
 
 ---
 
-# 15. DEPENDENCIES
+# 13. CHATBOT SECURITY
 
-Inspect chatbot dependencies.
-
-If `app.py` requires packages not currently present:
-
-- add them properly
-- avoid unnecessary packages
-- avoid version conflicts
-- update requirements file
-- verify installation
-
-For Python:
-
-```text
-requirements.txt
-```
-
-or the project's existing dependency manager.
-
-For frontend:
-
-use the existing package manager.
-
-Do not create a second independent dependency ecosystem unnecessarily.
-
----
-
-# 16. CORS
-
-If frontend and backend run on different ports during development, configure CORS correctly.
-
-For example:
-
-Frontend:
-
-```text
-http://localhost:3000
-```
-
-Backend:
-
-```text
-http://localhost:8000
-```
-
-Do not use:
-
-```text
-allow_origins=["*"]
-```
-
-in production unless there is a documented reason.
-
-Use environment-based origins.
-
----
-
-# 17. ERROR HANDLING
-
-Chat failures must not crash the website.
-
-Handle:
-
-- missing API key
-- model errors
-- rate limits
-- timeout
-- invalid input
-- provider errors
-- malformed tool responses
-- backend errors
-- network errors
-
-Return useful errors to the frontend.
-
-Never expose secrets or internal stack traces to users.
-
-Log detailed errors server-side.
-
----
-
-# 18. SECURITY
-
-Audit the chatbot integration for:
+Audit for:
 
 - prompt injection
 - arbitrary tool execution
-- unauthorized API access
-- excessive tool permissions
-- secret leakage
+- shell execution
+- filesystem access
+- credential leakage
 - unsafe user input
-- untrusted URLs
-- SQL injection if tools access DB
-- command execution
+- unrestricted model actions
+- excessive permissions
 
-The LLM must NOT have unrestricted access to the operating system.
+The LLM must not be able to execute arbitrary OS commands.
 
-Never allow the chatbot to execute arbitrary shell commands.
-
-Tools should have explicit schemas and limited permissions.
+Tools must have explicit schemas and limited capabilities.
 
 ---
 
-# 19. PERFORMANCE
-
-Do not make the chatbot unnecessarily slow.
-
-Use:
-
-- caching where appropriate
-- reasonable request timeouts
-- async backend calls
-- connection reuse
-- efficient tool calls
-
-Avoid calling the same external API multiple times for one user request unless necessary.
-
----
-
-# 20. TESTING
-
-Create tests for the chatbot integration.
-
-At minimum:
-
-### API test
-
-```text
-POST /api/v1/chat
-```
-
-with a normal message.
-
-### Tool test
-
-Verify the chatbot can call:
-
-```text
-get_current_traffic
-```
-
-### Error test
-
-Invalid/missing API credentials.
-
-### Conversation test
-
-```text
-Message 1
-→ response
-
-Message 2 referring to Message 1
-→ correct contextual response
-```
-
-### Frontend test
-
-Open chat.
-
-Send message.
-
-Receive response.
-
-Display response.
-
-### Integration test
-
-```text
-Chat UI
-→ backend
-→ chatbot
-→ TrafficSense service
-→ data
-→ chatbot
-→ UI
-```
-
-Run all existing tests afterward.
-
----
-
-# 21. LOCAL DEVELOPMENT
-
-The final project should be easy to start.
-
-Ideally:
-
-Terminal 1:
-
-```bash
-cd backend
-source venv/bin/activate
-uvicorn app.main:app --reload --port 8000
-```
-
-Terminal 2:
-
-```bash
-cd frontend
-npm run dev
-```
-
-If the chatbot requires a separate process, determine whether it can be incorporated into the backend.
-
-If it MUST run separately, create a clean service architecture such as:
-
-```text
-Frontend
-   ↓
-TrafficSense Backend :8000
-   ↓
-Chatbot Service :8001
-```
-
-But prefer a single backend process when practical.
-
-Do not run Streamlit alongside the production frontend unless there is a compelling reason.
-
----
-
-# 22. DOCKER
-
-If Docker already exists, update it appropriately.
-
-The final architecture should ideally support:
-
-```text
-frontend
-backend
-```
-
-and any genuinely necessary chatbot service.
-
-Do not create unnecessary containers.
-
-Make sure networking works correctly between services.
-
----
-
-# 23. API DOCUMENTATION
-
-The FastAPI Swagger documentation should expose:
-
-```text
-/api/v1/chat
-```
-
-and all existing TrafficSense APIs.
-
-Document:
-
-- request schema
-- response schema
-- errors
-- authentication requirements
-- example requests
-- example responses
-
----
-
-# 24. FRONTEND CHAT EXPERIENCE
-
-The chat should feel integrated with TrafficSense.
-
-Suggested welcome message:
-
-"Hi! I'm your TrafficSense AI assistant. Ask me about live traffic, congestion, predictions, incidents, weather, routes, or traffic analytics."
-
-Suggested quick actions:
-
-```text
-Current traffic in Bangalore
-Traffic on ORR
-Traffic prediction for 30 minutes
-Major incidents
-Weather and traffic
-Find a less congested route
-```
-
-These must trigger real backend requests.
-
-Do not hardcode answers.
-
----
-
-# 25. OBSERVABILITY
-
-Add useful logging around chatbot requests:
-
-```text
-request_id
-conversation_id
-latency
-model
-tools_used
-status
-error
-```
-
-Do not log:
-
-- API keys
-- user secrets
-- credentials
-
----
-
-# 26. README
-
-Update README.md with a new section:
-
-# AI Chatbot Integration
-
-Explain:
-
-- architecture
-- how `app.py` was integrated
-- chatbot API
-- required environment variables
-- how to start it
-- how frontend communicates with it
-- available tools
-- conversation handling
-- troubleshooting
-
-Include example:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "message": "How is traffic on Outer Ring Road?"
-  }'
-```
-
----
-
-# 27. DO NOT FAKE FUNCTIONALITY
-
-This is critical.
-
-Do NOT do things like:
-
-```javascript
-setTimeout(() => {
-  setMessages(...)
-}, 1000)
-```
-
-with a hardcoded response.
-
-Do NOT create fake traffic responses.
-
-Do NOT create fake AI responses.
-
-Do NOT create fake route results.
-
-Everything should connect to the actual system.
-
-If an external API is unavailable, use the project's explicit DEMO mode and clearly identify it as demo data.
-
----
-
-# 28. IMPLEMENTATION PROCESS
-
-Follow this exact workflow:
-
-STEP 1
-Audit repository.
-
-STEP 2
-Read and understand `app.py`.
-
-STEP 3
-Identify chatbot dependencies and architecture.
-
-STEP 4
-Identify existing TrafficSense backend services.
-
-STEP 5
-Design the smallest clean integration architecture.
-
-STEP 6
-Refactor chatbot logic only where required.
-
-STEP 7
-Create `/api/v1/chat`.
-
-STEP 8
-Connect chatbot tools to existing TrafficSense services.
-
-STEP 9
-Create/integrate the frontend chat UI.
-
-STEP 10
-Implement conversation handling.
-
-STEP 11
-Implement map/dashboard actions if practical.
-
-STEP 12
-Configure environment variables.
-
-STEP 13
-Run backend.
-
-STEP 14
-Run frontend.
-
-STEP 15
-Run tests.
-
-STEP 16
-Test an actual end-to-end conversation.
-
-STEP 17
-Fix every error you encounter.
-
-STEP 18
-Update README.
-
-STEP 19
-Give me a final architecture summary.
-
----
-
-# 29. END-TO-END ACCEPTANCE TEST
-
-Do not consider this complete until you can verify the following:
-
-### Test 1
-
-Open TrafficSense website.
-
-Expected:
-
-Dashboard loads successfully.
-
-### Test 2
-
-Open chatbot.
-
-Expected:
-
-Chat UI loads without errors.
-
-### Test 3
-
-Send:
-
-"How is traffic in Bangalore right now?"
-
-Expected:
-
-Real chatbot response using available TrafficSense traffic data.
-
-### Test 4
-
-Send:
-
-"What about Outer Ring Road?"
-
-Expected:
-
-The system understands the contextual request.
-
-### Test 5
-
-Send:
-
-"What will traffic be like in 30 minutes?"
-
-Expected:
-
-The chatbot calls the prediction service if available.
-
-### Test 6
-
-Send:
-
-"Are there any major incidents?"
-
-Expected:
-
-The chatbot accesses incident data.
-
-### Test 7
-
-Send:
-
-"What's the weather?"
-
-Expected:
-
-The chatbot accesses weather data where location is known/required.
-
-### Test 8
-
-Ask for a route.
-
-Expected:
-
-The chatbot uses the route service and returns actual route information where supported.
-
-### Test 9
-
-Interact with the map.
-
-Expected:
-
-Existing map functionality continues to work.
-
-### Test 10
-
-Refresh the website.
-
-Expected:
-
-No broken state or frontend errors.
-
----
-
-# 30. FINAL REQUIREMENT
-
-At the end, do NOT just tell me that the integration is complete.
-
-Actually verify it.
+# 14. FRONTEND QUALITY
+
+Check the entire frontend for:
+
+- TypeScript errors
+- ESLint errors
+- hydration issues
+- missing keys
+- unnecessary re-renders
+- broken client/server boundaries
+- invalid hooks
+- memory leaks
+- improper async handling
+- broken responsive layout
+- inaccessible controls
+- inconsistent state
 
 Run:
 
-- backend tests
-- frontend tests/build
-- lint/type checks where available
-- API health check
-- chatbot endpoint test
-- end-to-end chatbot request
+npm run build
 
-If something fails, diagnose and fix it.
+and any available lint/test commands.
 
-Only then report completion.
+Fix all genuine errors.
 
-Final report format:
+---
 
-```text
-CHATBOT INTEGRATION COMPLETE
+# 15. BROWSER CONSOLE
 
-Architecture:
-...
+Run the application and inspect browser console errors.
 
-Chatbot:
-...
+Fix:
 
-Backend:
-...
+- React warnings
+- hydration mismatch
+- failed API calls
+- undefined values
+- failed network requests
+- unhandled promise rejections
+- invalid DOM nesting
+- missing resources
 
-Frontend:
-...
+Do not ignore console errors simply because the UI appears visually correct.
 
-APIs:
-...
+---
 
-Tools:
-...
+# 16. API / FRONTEND CONTRACT
 
-Environment variables:
-...
+Compare frontend API calls with backend API definitions.
 
-Tests:
-...
+Look for:
 
-End-to-end verification:
-...
+- mismatched field names
+- mismatched data types
+- wrong endpoints
+- wrong HTTP methods
+- incorrect query parameters
+- incorrect response parsing
+- optional fields assumed to exist
+- stale API contracts
 
-Remaining issues:
-...
+This is a high-priority audit.
 
-How to run:
-...
-```
+---
 
-Remember:
+# 17. ENVIRONMENT VARIABLES
 
-The objective is NOT merely to "add app.py".
+Inspect:
 
-The objective is to make the existing TrafficSense AI platform and the chatbot function as ONE coherent application while preserving the existing traffic, prediction, analytics, weather, routing, and map functionality.
+backend/.env.example
 
-Inspect first. Integrate carefully. Test everything. Fix the errors. Do not fake functionality.
+frontend/.env.local.example
+
+Verify every required environment variable is:
+
+- documented
+- correctly named
+- actually used
+- not hardcoded
+- not exposed unnecessarily
+
+Verify no secrets exist in source code.
+
+Search the repository for:
+
+- API keys
+- AWS secrets
+- tokens
+- passwords
+- private credentials
+
+Do NOT print secret values in your final report.
+
+---
+
+# 18. CORS
+
+Verify CORS for:
+
+localhost:3000
+
+localhost:8000
+
+and any configured deployment origins.
+
+Development mode may allow the local frontend.
+
+Production must use explicit origins.
+
+Do not blindly use:
+
+allow_origins=["*"]
+
+unless there is a documented reason.
+
+---
+
+# 19. DOCKER
+
+Audit:
+
+docker-compose.yml
+
+backend/Dockerfile
+
+frontend/Dockerfile
+
+Verify:
+
+- build succeeds
+- containers start
+- frontend can reach backend
+- environment variables are passed correctly
+- ports are correct
+- health endpoint works
+
+Run:
+
+docker compose build
+
+and:
+
+docker compose up
+
+if Docker is available.
+
+Fix real issues.
+
+---
+
+# 20. TEST SUITE
+
+Run:
+
+cd backend
+pytest tests/ -v
+
+Run the complete test suite.
+
+Do not stop at the first failure.
+
+Classify failures:
+
+- real code bug
+- missing dependency
+- configuration problem
+- environment problem
+- outdated test
+- external API failure
+
+Fix actual code problems.
+
+Do not modify tests merely to make them pass unless the test itself is demonstrably incorrect.
+
+---
+
+# 21. FRONTEND BUILD
+
+Run:
+
+cd frontend
+npm install
+
+Then:
+
+npm run build
+
+and lint if configured.
+
+Resolve:
+
+- TypeScript failures
+- module errors
+- missing imports
+- invalid props
+- runtime build failures
+
+---
+
+# 22. END-TO-END TEST
+
+Perform an actual end-to-end test:
+
+1. Start backend.
+2. Verify `/api/v1/health`.
+3. Start frontend.
+4. Open dashboard.
+5. Open traffic map.
+6. Open analytics.
+7. Open predictions.
+8. Open routes.
+9. Open incidents.
+10. Open alerts.
+11. Open chatbot.
+12. Send an actual chatbot request.
+13. Verify backend interaction.
+14. Refresh the application.
+15. Confirm application remains stable.
+
+---
+
+# 23. DATA CONSISTENCY AUDIT
+
+Cross-check:
+
+Dashboard
+vs
+Map
+vs
+Analytics
+vs
+Predictions
+vs
+Incidents
+vs
+Alerts
+vs
+Chatbot
+
+The same road should not show contradictory traffic states without a valid timestamp/reason.
+
+For example:
+
+If the dashboard says:
+
+80% congestion
+
+while analytics says:
+
+45%
+
+determine whether both are calculated differently.
+
+Fix genuine inconsistencies.
+
+---
+
+# 24. DEMO MODE
+
+The repository appears to support DEMO mode.
+
+Verify that:
+
+- DEMO mode works without API credentials
+- DEMO mode is visibly labeled
+- live mode is visibly different
+- DEMO values do not accidentally appear as live data
+- chatbot responses correctly understand whether data is live or demo
+
+Do not remove DEMO mode unless it is genuinely broken and unnecessary.
+
+---
+
+# 25. PERFORMANCE
+
+Check obvious performance issues:
+
+- duplicate API requests
+- excessive polling
+- repeated model loading
+- repeated external API calls
+- expensive frontend rerenders
+- unnecessary large payloads
+- charts rendering excessively large datasets
+
+Do not optimize prematurely.
+
+Fix actual performance problems.
+
+---
+
+# 26. CODE QUALITY
+
+Look for:
+
+- duplicate logic
+- dead code
+- unused imports
+- unused variables
+- giant functions
+- duplicated API clients
+- inconsistent types
+- poor error handling
+- hardcoded configuration
+- magic numbers
+
+Refactor only where it meaningfully improves correctness or maintainability.
+
+Do not rewrite working modules simply for stylistic preference.
+
+---
+
+# 27. DOCUMENTATION
+
+Update documentation only where necessary.
+
+README.md should accurately describe:
+
+- architecture
+- installation
+- environment variables
+- backend
+- frontend
+- ML
+- chatbot
+- DEMO mode
+- testing
+- Docker
+- troubleshooting
+
+If documentation contains commands that no longer work, correct them.
+
+---
+
+# 28. GIT SAFETY
+
+Before modifying anything:
+
+Check git status.
+
+Do not overwrite unrelated uncommitted user changes.
+
+Do not delete files unless genuinely necessary.
+
+Do not remove working functionality.
+
+Keep changes focused and explainable.
+
+---
+
+# 29. FIX PRIORITY
+
+Use this priority:
+
+P0 — application cannot start
+P1 — broken core functionality
+P2 — incorrect data / incorrect calculations
+P3 — integration failures
+P4 — UI/UX bugs
+P5 — code-quality improvements
+
+Always fix P0/P1/P2 before cosmetic changes.
+
+---
+
+# 30. DEFINITION OF DONE
+
+The task is complete only when:
+
+[ ] Backend starts
+[ ] Frontend starts
+[ ] Health endpoint works
+[ ] Frontend build succeeds
+[ ] Backend tests pass
+[ ] Traffic service works
+[ ] Traffic map works
+[ ] Analytics works
+[ ] Predictions work
+[ ] Route planner works
+[ ] Incidents work
+[ ] Alerts work
+[ ] Weather works
+[ ] Chatbot loads
+[ ] Chatbot can answer real traffic queries
+[ ] Chatbot tool calling works
+[ ] Conversation context works
+[ ] Demo mode works
+[ ] No exposed secrets
+[ ] No critical browser console errors
+[ ] Docker build works if Docker is available
+[ ] README/run instructions are accurate
+
+Do NOT claim completion unless these checks have actually been performed.
+
+---
+
+# 31. FINAL REPORT
+
+At the end provide a concise engineering report:
+
+## Repository Audit
+What was inspected?
+
+## Bugs Found
+For each bug:
+
+- file
+- problem
+- root cause
+- fix
+
+## Features Verified
+List working modules.
+
+## Tests
+Include exact commands and results.
+
+## Build
+Frontend build result.
+
+## Backend
+Startup and health-check result.
+
+## Chatbot
+Chatbot test result.
+
+## Docker
+Docker result if tested.
+
+## Security
+Any issues found/fixed.
+
+## Remaining Issues
+Only genuine unresolved issues.
+
+## Recommended Next Steps
+Only if necessary.
+
+IMPORTANT:
+
+Do not report something as "verified" unless you actually ran it.
+
+Do not hide failures.
+
+Do not fabricate test results.
+
+The goal is to leave TrafficSense AI genuinely more stable, correct, secure and maintainable than it was before the audit.

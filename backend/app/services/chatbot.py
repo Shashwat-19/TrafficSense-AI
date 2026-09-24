@@ -307,7 +307,10 @@ class ChatbotService:
                     if "text" in block:
                         text_parts.append(block["text"])
 
-                return "\n".join(text_parts) if text_parts else "I couldn't generate a response. Please try again."
+                raw_text = "\n".join(text_parts) if text_parts else "I couldn't generate a response. Please try again."
+                import re
+                cleaned_text = re.sub(r"<thinking>.*?</thinking>", "", raw_text, flags=re.DOTALL).strip()
+                return cleaned_text if cleaned_text else raw_text
 
         return "I needed too many steps to answer. Please simplify your question."
 
