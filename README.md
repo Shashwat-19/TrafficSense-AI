@@ -79,90 +79,125 @@ Bangalore consistently ranks among the most congested metropolitan areas globall
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph External["External Telemetry & Cloud AI"]
-        TT["TomTom Traffic API (Live Flow & Incidents)"]
-        OW["OpenWeather API (Live Weather Data)"]
-        SIM["Bangalore Diurnal Simulation Engine (25 Corridors)"]
-        BEDROCK["AWS Bedrock Runtime (Amazon Nova Lite)"]
+flowchart TB
+    %% Styling Definitions
+    classDef client fill:#e0e7ff,stroke:#4338ca,stroke-width:2px,color:#1e1b4b
+    classDef gateway fill:#f8fafc,stroke:#475569,stroke-width:2px,color:#0f172a
+    classDef service fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0c4a6e
+    classDef ai fill:#fae8ff,stroke:#a21caf,stroke-width:2px,color:#701a75
+    classDef data fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef external fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+
+    subgraph Tier1["1. PRESENTATION LAYER (Next.js 16 • React 19)"]
+        UI_DASH["Executive Dashboard\n(/)"]:::client
+        UI_MAP["Geospatial Traffic Map\n(/map)"]:::client
+        UI_ANL["Analytics & Trends\n(/analytics)"]:::client
+        UI_ROU["Smart Route Planner\n(/routes)"]:::client
+        UI_CHAT["AI Assistant Console\n(/chat)"]:::client
+        UI_OPS["Incidents & Alerts\n(/incidents • /alerts)"]:::client
     end
 
-    subgraph Backend["FastAPI Backend (Port 8000)"]
-        API["API v1 Router (/api/v1/*)"]
-
-        subgraph Services["Domain Services"]
-            TS["Traffic Service"]
-            WS["Weather Service"]
-            IS["Incident Service"]
-            PS["Prediction Service"]
-            RS["Route Service"]
-            AS["Analytics Service"]
-            ALS["Alerts Service"]
-            US["User Service"]
-        end
-
-        subgraph ChatService["Conversational AI Engine"]
-            CS["Chatbot Service (Sliding Context Window)"]
-            TOOLS["7 Chatbot Domain Tools (Tool Execution)"]
-        end
-
-        subgraph ML["ML Inference Engine"]
-            XGB["XGBoost Regressor (xgb_speed_model.pkl)"]
-        end
-
-        subgraph Cache["Caching & Logging"]
-            LOG["JSON Structured Logger & Latency Middleware"]
-            TTL["In-Memory TTL Caches (Traffic 120s, Weather 300s, Predictions 300s)"]
-        end
+    subgraph Tier2["2. API GATEWAY & ORCHESTRATION (FastAPI)"]
+        GATEWAY["API Router & Endpoints\n(/api/v1/*)"]:::gateway
+        MIDDLEWARE["Middleware & Infrastructure\n(JSON Structured Logging • CORS • Security)"]:::gateway
+        CACHE["In-Memory TTL Caching Engine\n(Traffic: 120s • Weather: 300s • Forecasts: 300s)"]:::gateway
     end
 
-    subgraph Frontend["Next.js 16 SaaS Frontend (Port 3000)"]
-        DASH["Dashboard (/)"]
-        MAP["Traffic Map (/map)"]
-        ANL["Analytics (/analytics)"]
-        PRED["Predictions (/predictions)"]
-        ROU["Routes (/routes)"]
-        INC["Incidents (/incidents)"]
-        ALT["Alerts (/alerts)"]
-        CHAT["AI Assistant (/chat)"]
-        SET["Settings (/settings)"]
+    subgraph Tier3["3. APPLICATION & DOMAIN SERVICES"]
+        SVC_TRAFFIC["Traffic Service\n(25 Bangalore Corridors)"]:::service
+        SVC_ROUTE["Route Engine\n(Congestion Delay Scoring)"]:::service
+        SVC_INCIDENT["Incident & Alert Service\n(Hazard Classification)"]:::service
+        SVC_ANALYTICS["Analytics Service\n(City Bottlenecks & Patterns)"]:::service
+        SVC_WEATHER["Weather Service\n(Precipitation & Road Signals)"]:::service
+        SVC_CHAT["Chatbot Agent Service\n(Context Store • Tool Dispatcher)"]:::ai
     end
 
-    TT --> TS
-    OW --> WS
-    SIM --> TS
-    SIM --> IS
-    SIM --> WS
+    subgraph Tier4["4. MACHINE LEARNING & FOUNDATION AI"]
+        ML_MODEL["XGBoost Regressor Engine\n(xgb_speed_model.pkl)"]:::ai
+        ML_PIPELINE["Spatio-Temporal Pipeline\n(Lag Speeds • Congestion Index • Horizons)"]:::ai
+        AWS_BEDROCK["AWS Bedrock Runtime\n(Amazon Nova Lite • Tool Converse API)"]:::external
+    end
 
-    TS --> TTL
-    WS --> TTL
+    subgraph Tier5["5. INGESTION & TELEMETRY SOURCES"]
+        SRC_SIM["Bangalore Diurnal Engine\n(Deterministic Commute Simulation)"]:::data
+        SRC_TOMTOM["TomTom Traffic API\n(Live Speed & Incident Telemetry)"]:::external
+        SRC_WEATHER["OpenWeather API\n(Microclimate Observations)"]:::external
+    end
 
-    TS --> API
-    IS --> API
-    WS --> API
-    RS --> API
-    AS --> API
-    ALS --> API
-    US --> API
+    %% Client Communication
+    Tier1 ==>|"HTTPS / JSON REST Queries"| GATEWAY
+    GATEWAY --- MIDDLEWARE
+    GATEWAY --- CACHE
 
-    TS --> PS
-    XGB --> PS
-    PS --> API
+    %% Gateway to Domain Services
+    GATEWAY --> SVC_TRAFFIC
+    GATEWAY --> SVC_ROUTE
+    GATEWAY --> SVC_INCIDENT
+    GATEWAY --> SVC_ANALYTICS
+    GATEWAY --> SVC_WEATHER
+    GATEWAY --> SVC_CHAT
 
-    API --> CS
-    CS <--> BEDROCK
-    CS <--> TOOLS
-    TOOLS --> TS
-    TOOLS --> IS
-    TOOLS --> WS
-    TOOLS --> PS
-    TOOLS --> RS
-    TOOLS --> AS
-    TOOLS --> ALS
+    %% Domain Services to ML Pipeline
+    SVC_TRAFFIC --> ML_PIPELINE
+    SVC_WEATHER --> ML_PIPELINE
+    ML_PIPELINE --> ML_MODEL
+    ML_MODEL -->|"Multi-Horizon Speed Forecasts"| SVC_TRAFFIC
 
-    API --> LOG
-    API --> Frontend
+    %% Conversational AI Tool Loop
+    SVC_CHAT <==>|"Dynamic Tool Calling"| AWS_BEDROCK
+    SVC_CHAT -.->|"1. Telemetry Query"| SVC_TRAFFIC
+    SVC_CHAT -.->|"2. Hazard Lookup"| SVC_INCIDENT
+    SVC_CHAT -.->|"3. Route Pathfinder"| SVC_ROUTE
+    SVC_CHAT -.->|"4. ML Forecasts"| ML_MODEL
+
+    %% Telemetry Ingestion Flow
+    SRC_SIM -->|"Demo Mode Fallback"| SVC_TRAFFIC
+    SRC_SIM -->|"Demo Weather"| SVC_WEATHER
+    SRC_TOMTOM -->|"Live Traffic Flow"| SVC_TRAFFIC
+    SRC_TOMTOM -->|"Live Incidents"| SVC_INCIDENT
+    SRC_WEATHER -->|"Live Ambient Data"| SVC_WEATHER
 ```
+
+### End-to-End Request & Inference Lifecycle
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Operator as Operator / Commuter
+    participant UI as Next.js 16 UI
+    participant Gateway as FastAPI Router
+    participant Cache as TTL Cache Engine
+    participant Service as Domain Services
+    participant ML as XGBoost / Bedrock AI
+    participant Telemetry as Telemetry / Simulator
+
+    Operator->>UI: Request Traffic Forecast / Route
+    UI->>Gateway: GET /api/v1/predictions?horizon=30
+    Gateway->>Cache: Check Cached Result
+    alt Cache Hit (Valid TTL)
+        Cache-->>Gateway: Return Cached Payload (<10ms)
+    else Cache Miss
+        Gateway->>Service: Invoke PredictionService
+        Service->>Telemetry: Pull Current Speed & Weather Signals
+        Telemetry-->>Service: Segment Telemetry Data
+        Service->>ML: Vectorize Features & Run XGBoost Inference
+        ML-->>Service: Predicted Speed & Confidence Interval
+        Service->>Cache: Store Result in TTL Cache
+        Service-->>Gateway: Formatted Response Envelope
+    end
+    Gateway-->>UI: JSON Payload (data_mode: live/demo)
+    UI-->>Operator: Render High-Contrast Chart & Map Overlay
+```
+
+### Architectural Tier Breakdown
+
+| Tier | Component | Primary Responsibility | SLA / Latency |
+|---|---|---|---|
+| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Pre-rendered static shell (`< 50ms` FCP) |
+| **2. Gateway** | FastAPI + Starlette + Middleware | Route dispatch, strict Pydantic v2 validation, CORS authorization, structured JSON access logging, and in-memory TTL caching. | `< 5ms` overhead |
+| **3. Domain Services** | Python 3.11 Microservices | Core business logic for traffic corridor normalization, route delay penalties, incident tracking, and Bedrock tool dispatching. | `< 15ms` execution |
+| **4. AI / ML** | XGBoost Regressor + AWS Bedrock | 9-feature spatio-temporal speed forecasts (15/30/60m) and multi-turn conversational AI reasoning via Amazon Nova Lite. | ML: `< 20ms` • Bedrock: `~600–1200ms` |
+| **5. Ingestion** | TomTom API + OpenWeather + Diurnal Engine | Hybrid telemetry acquisition with automatic zero-credential fallback simulation calibrated for Bangalore traffic peaks. | Scheduled polling + 120s TTL |
 
 ---
 
