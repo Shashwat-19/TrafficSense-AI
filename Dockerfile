@@ -9,7 +9,7 @@ COPY frontend/ ./
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
-RUN npm run build
+RUN npm run build && npm prune --production
 
 # ── Stage 2: Backend Dependencies ──
 FROM python:3.11-slim AS backend-builder
@@ -27,18 +27,21 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 FROM python:3.11-slim AS runner
 WORKDIR /app
 
-# Install Node.js runtime and curl for health checks
+# Install Node.js 20 LTS runtime, curl for health checks, and certificates
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nodejs \
-    npm \
     curl \
+    ca-certificates \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages & backend code
 COPY --from=backend-builder /install /usr/local
 COPY backend/ /app/backend/
 
-# Copy built frontend assets
+# Copy built frontend assets and pruned production dependencies
 COPY --from=frontend-builder /app/frontend/.next /app/frontend/.next
 COPY --from=frontend-builder /app/frontend/node_modules /app/frontend/node_modules
 COPY --from=frontend-builder /app/frontend/package.json /app/frontend/package.json
@@ -51,6 +54,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 EXPOSE 8000 3000
 
 ENV APP_ENV=production
+ENV PYTHONUNBUFFERED=1
 ENV CORS_ORIGINS=http://localhost:3000,http://localhost:8000
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

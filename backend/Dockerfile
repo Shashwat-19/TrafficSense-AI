@@ -11,6 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+ENV PYTHONUNBUFFERED=1 \
+    APP_ENV=production
+
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

@@ -25,7 +25,14 @@ echo "- Backend:  http://0.0.0.0:8000"
 echo "- Frontend: http://0.0.0.0:3000"
 
 # Forward termination signals cleanly to child processes
-trap 'echo "Stopping services..."; kill -TERM $BACKEND_PID $FRONTEND_PID 2>/dev/null; wait $BACKEND_PID $FRONTEND_PID; exit 0' SIGTERM SIGINT
+trap 'echo "Stopping services..."; kill -TERM $BACKEND_PID $FRONTEND_PID 2>/dev/null; wait $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0' SIGTERM SIGINT
 
-# Wait for any process to exit
-wait -n $BACKEND_PID $FRONTEND_PID
+# Supervise child processes: if either backend or frontend crashes, exit
+while kill -0 $BACKEND_PID 2>/dev/null && kill -0 $FRONTEND_PID 2>/dev/null; do
+    sleep 2
+done
+
+echo "One of the services terminated unexpectedly. Shutting down stack..."
+kill -TERM $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+wait $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+exit 1
