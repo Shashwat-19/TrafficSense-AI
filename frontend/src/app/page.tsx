@@ -1,205 +1,258 @@
 'use client';
 
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Car, Cloud, Activity, Clock, ShieldAlert } from 'lucide-react';
-import { getAnalytics, getIncidents, getWeather, getAlerts } from '@/lib/api/client';
-import type { AppResponse, AnalyticsData, Incident, Alert, WeatherData } from '@/types';
-import { CONGESTION_COLORS } from '@/lib/congestion';
-import type { CongestionLevel } from '@/types';
+import { 
+  Activity, 
+  Car, 
+  AlertTriangle, 
+  Cloud, 
+  RefreshCw 
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { PageContainer } from '@/components/layout/page-container';
+import { DashboardMetricCard } from '@/components/dashboard/metric-card';
+import { TrafficOverview } from '@/components/dashboard/traffic-overview';
+import { RecentAlerts } from '@/components/dashboard/recent-alerts';
+import { TrafficSummary } from '@/components/dashboard/traffic-summary';
+import { TrafficTrendWidget } from '@/components/dashboard/traffic-trend-widget';
+import { PredictionSummary } from '@/components/dashboard/prediction-summary';
+import { WeatherWidget } from '@/components/dashboard/weather-widget';
 
-function getCongestionColor(level: string) {
-  const colors = CONGESTION_COLORS[level as CongestionLevel];
-  if (!colors) return 'text-gray-500 bg-gray-500/10';
-  return `${colors.text} ${colors.bg}`;
-}
+import { 
+  getAnalytics, 
+  getTrafficData, 
+  getIncidents, 
+  getWeather, 
+  getAlerts,
+  getPredictions 
+} from '@/lib/api/client';
+import type { 
+  AnalyticsData, 
+  TrafficSegment, 
+  Incident, 
+  Alert, 
+  WeatherData,
+  TrafficPrediction 
+} from '@/types';
+import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
 
 export default function DashboardPage() {
-  const { data: analyticsRes, isLoading: loadingAnalytics, error: errorAnalytics } = useQuery({
+  // Query live/demo backend endpoints
+  const { 
+    data: analyticsRes, 
+    isLoading: loadingAnalytics, 
+    refetch: refetchAnalytics,
+    isRefetching: refetchingAnalytics 
+  } = useQuery({
     queryKey: ['analytics'],
     queryFn: getAnalytics,
     refetchInterval: 60000,
   });
 
-  const { data: incidentsRes, isLoading: loadingIncidents, error: errorIncidents } = useQuery({
+  const { 
+    data: trafficRes, 
+    isLoading: loadingTraffic, 
+    refetch: refetchTraffic 
+  } = useQuery({
+    queryKey: ['trafficSegments'],
+    queryFn: getTrafficData,
+    refetchInterval: 60000,
+  });
+
+  const { 
+    data: incidentsRes, 
+    isLoading: loadingIncidents, 
+    refetch: refetchIncidents 
+  } = useQuery({
     queryKey: ['incidents'],
     queryFn: () => getIncidents(),
     refetchInterval: 60000,
   });
 
-  const { data: weatherRes, isLoading: loadingWeather, error: errorWeather } = useQuery({
+  const { 
+    data: weatherRes, 
+    isLoading: loadingWeather, 
+    refetch: refetchWeather 
+  } = useQuery({
     queryKey: ['weather'],
     queryFn: getWeather,
     refetchInterval: 300000,
   });
 
-  const { data: alertsRes, isLoading: loadingAlerts, error: errorAlerts } = useQuery({
+  const { 
+    data: alertsRes, 
+    isLoading: loadingAlerts, 
+    refetch: refetchAlerts 
+  } = useQuery({
     queryKey: ['alerts'],
     queryFn: getAlerts,
     refetchInterval: 60000,
   });
 
+  const { 
+    data: predictionsRes, 
+    isLoading: loadingPredictions, 
+    refetch: refetchPredictions 
+  } = useQuery({
+    queryKey: ['predictions', 30],
+    queryFn: () => getPredictions(30),
+    refetchInterval: 120000,
+  });
+
   const analytics = analyticsRes?.data as AnalyticsData | undefined;
+  const segments = (trafficRes?.data ?? []) as TrafficSegment[];
   const incidents = (incidentsRes?.data ?? []) as Incident[];
   const weather = weatherRes?.data as WeatherData | undefined;
   const alerts = (alertsRes?.data ?? []) as Alert[];
-  const dataMode = analyticsRes?.data_mode || 'demo';
+  const predictions = (predictionsRes?.data ?? []) as TrafficPrediction[];
+
+  const dataMode = analyticsRes?.data_mode || trafficRes?.data_mode || 'demo';
+
+  const handleRefreshAll = () => {
+    refetchAnalytics();
+    refetchTraffic();
+    refetchIncidents();
+    refetchWeather();
+    refetchAlerts();
+    refetchPredictions();
+  };
+
+  // Congestion status colors
+  const congestionLevel = analytics?.overall_level || 'LOW';
+  const colorInfo = CONGESTION_COLORS[congestionLevel] || CONGESTION_COLORS.LOW;
+  const congestionPct = Math.round((analytics?.overall_congestion || 0) * 100);
+  const criticalIncidentsCount = incidents.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH').length;
 
   return (
-    <div className="flex-1 space-y-4 pt-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <Badge variant="outline" className={dataMode === 'live' ? 'border-green-500 text-green-500' : 'border-yellow-500 text-yellow-500'}>
-          {dataMode === 'live' ? '● LIVE' : '● DEMO'}
-        </Badge>
+    <PageContainer
+      title="Traffic Intelligence"
+      subtitle="Real-time traffic conditions, predictions and incidents across Bangalore."
+      dataMode={dataMode}
+      actions={
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefreshAll}
+            disabled={refetchingAnalytics}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refetchingAnalytics ? 'animate-spin' : ''}`} />
+            <span>Sync Grid</span>
+          </Button>
+        </div>
+      }
+    >
+      {/* 4 Top KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI 1: Overall Congestion */}
+        <DashboardMetricCard
+          title="Overall Congestion"
+          value={loadingAnalytics ? "--" : `${congestionPct}%`}
+          subtitle={`${analytics?.total_segments || 25} monitored corridors`}
+          icon={Activity}
+          iconColor="text-blue-600 dark:text-blue-400"
+          badgeText={getCongestionLabel(congestionLevel)}
+          badgeClassName={`${colorInfo.bg} ${colorInfo.text} ${colorInfo.border}`}
+          trend={{
+            value: congestionPct > 60 ? "+4.2%" : "-2.1%",
+            isGood: congestionPct <= 50,
+            label: "vs normal",
+          }}
+        />
+
+        {/* KPI 2: Active Incidents */}
+        <DashboardMetricCard
+          title="Active Incidents"
+          value={loadingIncidents ? "--" : incidents.length}
+          subtitle={
+            criticalIncidentsCount > 0
+              ? `${criticalIncidentsCount} critical / major delay`
+              : "No critical obstructions"
+          }
+          icon={AlertTriangle}
+          iconColor={criticalIncidentsCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}
+          badgeText={criticalIncidentsCount > 0 ? "ATTENTION" : "MONITORED"}
+          badgeClassName={criticalIncidentsCount > 0 ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-slate-100 text-slate-700 border-slate-200"}
+        />
+
+        {/* KPI 3: Average Speed */}
+        <DashboardMetricCard
+          title="Average Speed"
+          value={loadingAnalytics ? "--" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
+          subtitle="Typical free-flow: 45 km/h"
+          icon={Car}
+          iconColor="text-emerald-600 dark:text-emerald-400"
+          badgeText={`${Math.max(0, 45 - Math.round(analytics?.avg_speed || 0))} km/h drag`}
+          badgeClassName="bg-slate-100 text-slate-700 border-slate-200"
+          trend={{
+            value: `${Math.round((analytics?.avg_speed || 0) / 45 * 100)}%`,
+            isGood: (analytics?.avg_speed || 0) > 30,
+            label: "capacity",
+          }}
+        />
+
+        {/* KPI 4: Weather Conditions */}
+        <DashboardMetricCard
+          title="Weather Context"
+          value={loadingWeather ? "--" : `${Math.round(weather?.temperature || 26)}°C`}
+          subtitle={weather ? `${weather.condition} • ${weather.humidity}% humidity` : "Bangalore microclimate"}
+          icon={Cloud}
+          iconColor="text-sky-600 dark:text-sky-400"
+          badgeText={weather?.precipitation && weather.precipitation > 0 ? "WET ROADS" : "CLEAR"}
+          badgeClassName={weather?.precipitation && weather.precipitation > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
+        />
       </div>
 
-      {/* Metric Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Congestion</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingAnalytics ? <Skeleton className="h-7 w-20" /> : errorAnalytics ? (
-              <div className="text-sm text-red-500">Error</div>
-            ) : (
-              <>
-                <Badge className={getCongestionColor(analytics?.overall_level || 'LOW')}>
-                  {analytics?.overall_level || 'UNKNOWN'}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {((analytics?.overall_congestion || 0) * 100).toFixed(0)}% congested
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingIncidents ? <Skeleton className="h-7 w-20" /> : errorIncidents ? (
-              <div className="text-sm text-red-500">Error</div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{incidents.length}</div>
-                <p className="text-xs text-muted-foreground mt-1">Across Bangalore</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Speed</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingAnalytics ? <Skeleton className="h-7 w-20" /> : errorAnalytics ? (
-              <div className="text-sm text-red-500">Error</div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{Math.round(analytics?.avg_speed || 0)} km/h</div>
-                <p className="text-xs text-muted-foreground mt-1">{analytics?.total_segments || 0} segments monitored</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Weather</CardTitle>
-            <Cloud className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingWeather ? <Skeleton className="h-7 w-20" /> : errorWeather ? (
-              <div className="text-sm text-red-500">Error</div>
-            ) : (
-              <>
-                <div className="text-2xl font-bold">{weather?.temperature || '--'}°C</div>
-                <p className="text-xs text-muted-foreground mt-1">{weather?.condition || 'Loading...'} • {weather?.humidity || 0}% humidity</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      {/* Main Content Grid: Live Map Overview (LEFT) + Recent Alerts (RIGHT) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="lg:col-span-7">
+          <TrafficOverview
+            segments={segments}
+            isLoading={loadingTraffic}
+            dataMode={dataMode}
+          />
+        </div>
+        <div className="lg:col-span-5">
+          <RecentAlerts
+            alerts={alerts}
+            isLoading={loadingAlerts}
+          />
+        </div>
       </div>
 
-      {/* Traffic Overview + Recent Alerts */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-full lg:col-span-4">
-          <CardHeader>
-            <CardTitle>Traffic Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingAnalytics ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-              </div>
-            ) : errorAnalytics ? (
-              <div className="text-red-500">Failed to load traffic overview</div>
-            ) : (
-              <div className="space-y-4">
-                {analytics?.top_congested_roads?.slice(0, 5).map((road, i) => (
-                  <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium">{road.road_name}</span>
-                      <span className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {road.current_speed} km/h (free: {road.free_flow_speed} km/h)
-                      </span>
-                    </div>
-                    <Badge className={getCongestionColor(road.congestion_level)}>
-                      {road.congestion_level}
-                    </Badge>
-                  </div>
-                ))}
-                {(!analytics?.top_congested_roads || analytics.top_congested_roads.length === 0) && (
-                  <div className="text-sm text-muted-foreground">No congestion data available</div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-full lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Recent Alerts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loadingAlerts ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-              </div>
-            ) : errorAlerts ? (
-              <div className="text-red-500">Failed to load alerts</div>
-            ) : (
-              <div className="space-y-4">
-                {alerts.slice(0, 5).map((alert, i) => (
-                  <div key={i} className="flex items-start gap-4 border-b pb-4 last:border-0 last:pb-0">
-                    <div className="mt-1">
-                      <ShieldAlert className={`h-5 w-5 ${alert.severity === 'CRITICAL' ? 'text-red-500' : alert.severity === 'WARNING' ? 'text-orange-500' : 'text-blue-500'}`} />
-                    </div>
-                    <div className="flex-1 space-y-1">
-                      <p className="text-sm font-medium leading-none">{alert.title}</p>
-                      <p className="text-xs text-muted-foreground">{alert.road_name || 'Bangalore'}</p>
-                    </div>
-                    <Badge variant="outline">{alert.severity}</Badge>
-                  </div>
-                ))}
-                {alerts.length === 0 && (
-                  <div className="text-sm text-muted-foreground">No recent alerts</div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Secondary Content: Top Congested Roads + 24h Trend */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="lg:col-span-6">
+          <TrafficSummary
+            roads={analytics?.top_congested_roads ?? []}
+            isLoading={loadingAnalytics}
+          />
+        </div>
+        <div className="lg:col-span-6">
+          <TrafficTrendWidget
+            data={analytics?.hourly_patterns ?? []}
+            isLoading={loadingAnalytics}
+          />
+        </div>
       </div>
-    </div>
+
+      {/* Tertiary Content: ML Prediction Summary + Bangalore Weather & Road Advisory */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="lg:col-span-7">
+          <PredictionSummary
+            predictions={predictions}
+            isLoading={loadingPredictions}
+          />
+        </div>
+        <div className="lg:col-span-5">
+          <WeatherWidget
+            weather={weather}
+            isLoading={loadingWeather}
+          />
+        </div>
+      </div>
+    </PageContainer>
   );
 }

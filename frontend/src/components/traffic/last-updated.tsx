@@ -11,12 +11,11 @@ interface LastUpdatedProps {
 }
 
 export function LastUpdated({ timestamp, className }: LastUpdatedProps) {
-  const [formatted, setFormatted] = useState<string>('');
+  const [formatted, setFormatted] = useState<string>(() => {
+    return typeof window !== 'undefined' ? formatTimestamp(timestamp) : '';
+  });
 
   useEffect(() => {
-    // Initial format
-    setFormatted(formatTimestamp(timestamp));
-    
     // Update every minute
     const interval = setInterval(() => {
       setFormatted(formatTimestamp(timestamp));
