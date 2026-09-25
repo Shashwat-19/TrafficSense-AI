@@ -1,164 +1,188 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getPredictions, getTrafficData } from '@/lib/api/client';
-import type { TrafficPrediction, TrafficSegment } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { TrafficPrediction, TrafficSegment, CongestionLevel } from '@/types';
+import { PageContainer } from '@/components/layout/page-container';
+import { PredictionCard } from '@/components/predictions/prediction-card';
+import { PredictionChart } from '@/components/predictions/prediction-chart';
+
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { AlertCircle, Brain } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { CONGESTION_COLORS } from '@/lib/congestion';
-import type { CongestionLevel } from '@/types';
-
-function getCongestionColor(level: string) {
-  const c = CONGESTION_COLORS[level as CongestionLevel];
-  return c ? `${c.text} ${c.bg}` : 'text-gray-500 bg-gray-500/10';
-}
+import { 
+  Brain, 
+  RefreshCw, 
+  AlertCircle, 
+  Cpu
+} from 'lucide-react';
 
 export default function PredictionsPage() {
-  const [horizon, setHorizon] = useState('15');
+  const [horizon, setHorizon] = useState('30');
   const [segmentId, setSegmentId] = useState<string>('all');
+  const [levelFilter, setLevelFilter] = useState<'ALL' | CongestionLevel>('ALL');
 
   const { data: trafficRes } = useQuery({
     queryKey: ['trafficSegments'],
     queryFn: getTrafficData,
   });
 
-  const { data: predRes, isLoading, error, refetch } = useQuery({
+  const { data: predRes, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['predictions', horizon, segmentId],
     queryFn: () => getPredictions(Number(horizon), segmentId === 'all' ? undefined : segmentId),
+    refetchInterval: 120000,
   });
 
   const segments = (trafficRes?.data ?? []) as TrafficSegment[];
   const predictions = (predRes?.data ?? []) as TrafficPrediction[];
   const dataMode = predRes?.data_mode || 'demo';
 
+  // Apply filters
+  const filteredPredictions = predictions.filter(p => {
+    if (levelFilter !== 'ALL' && p.predicted_level !== levelFilter) return false;
+    return true;
+  });
+
   return (
-    <div className="space-y-6 pt-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-          <Brain className="h-8 w-8" /> Predictions
-        </h1>
-        <Badge variant="outline" className={dataMode === 'live' ? 'border-green-500 text-green-500' : 'border-yellow-500 text-yellow-500'}>
-          {dataMode === 'live' ? '● LIVE' : '● DEMO'}
-        </Badge>
-      </div>
+    <PageContainer
+      title="Traffic Predictions"
+      subtitle="Machine-learning speed forecasts and congestion projections for Bangalore roads."
+      dataMode={dataMode}
+      actions={
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+            <span>Update Models</span>
+          </Button>
+        </div>
+      }
+    >
+      {/* Controls Bar: Horizon Tabs + Segment Filter + Congestion Filter */}
+      <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        {/* Horizon tabs */}
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs font-semibold text-slate-500 flex items-center gap-1 shrink-0">
+            <Brain className="h-3.5 w-3.5 text-indigo-600" /> Horizon:
+          </span>
+          <Tabs value={horizon} onValueChange={setHorizon} className="w-auto">
+            <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl h-9">
+              <TabsTrigger value="15" className="text-xs px-3 rounded-lg font-medium">15 min</TabsTrigger>
+              <TabsTrigger value="30" className="text-xs px-3 rounded-lg font-medium">30 min</TabsTrigger>
+              <TabsTrigger value="60" className="text-xs px-3 rounded-lg font-medium">60 min</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
 
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-        <Tabs value={horizon} onValueChange={setHorizon}>
-          <TabsList>
-            <TabsTrigger value="15">15 min</TabsTrigger>
-            <TabsTrigger value="30">30 min</TabsTrigger>
-            <TabsTrigger value="60">60 min</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Road segment & status filters */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={segmentId} onValueChange={(v) => setSegmentId(v || 'all')}>
+            <SelectTrigger className="w-[220px] h-9 text-xs rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <SelectValue placeholder="All Segments" />
+            </SelectTrigger>
+            <SelectContent className="max-h-60">
+              <SelectItem value="all">All Bangalore Corridors</SelectItem>
+              {segments.map((seg) => (
+                <SelectItem key={seg.id} value={seg.id}>
+                  {seg.road_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={segmentId} onValueChange={(v) => setSegmentId(v ?? 'all')}>
-          <SelectTrigger className="w-[260px]">
-            <SelectValue placeholder="Select segment" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Segments</SelectItem>
-            {segments.map((seg) => (
-              <SelectItem key={seg.id} value={seg.id}>
-                {seg.road_name}
-              </SelectItem>
+          {/* Level Filter */}
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl text-xs">
+            {(['ALL', 'LOW', 'MODERATE', 'HIGH', 'SEVERE'] as const).map((lvl) => (
+              <button
+                key={lvl}
+                onClick={() => setLevelFilter(lvl)}
+                className={`px-2.5 py-1 rounded-lg font-medium text-[11px] transition-all ${
+                  levelFilter === lvl
+                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs font-semibold'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                }`}
+              >
+                {lvl === 'ALL' ? 'All' : lvl.slice(0, 3)}
+              </button>
             ))}
-          </SelectContent>
-        </Select>
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
+      {/* Error State */}
       {error ? (
-        <Card className="border-red-200">
-          <CardContent className="pt-6 flex flex-col items-center gap-4">
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <p>Error loading predictions. Is the backend running?</p>
-            <Button variant="outline" onClick={() => refetch()}>Retry</Button>
+        <Card className="border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 rounded-2xl">
+          <CardContent className="pt-8 pb-8 flex flex-col items-center justify-center gap-3">
+            <AlertCircle className="h-10 w-10 text-rose-500" />
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">Unable to Load Machine Learning Predictions</h3>
+            <p className="text-xs text-slate-500 text-center max-w-sm">
+              Verify that the ML inference service and XGBoost model artifacts are accessible.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="rounded-xl mt-2">
+              <RefreshCw className="h-3.5 w-3.5 mr-2" /> Retry Fetch
+            </Button>
           </CardContent>
         </Card>
       ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-44" />)}
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-56 w-full rounded-2xl" />
+          ))}
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Prediction Cards */}
+          {/* Prediction Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {predictions.map((pred) => (
-              <Card key={`${pred.segment_id}-${pred.horizon_minutes}`}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-base">{pred.road_name || pred.segment_id}</CardTitle>
-                    <Badge className={getCongestionColor(pred.predicted_level)}>
-                      {pred.predicted_level}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Current Speed:</span>
-                      <span className="font-medium">{pred.current_speed?.toFixed(0) || '--'} km/h</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Predicted Speed:</span>
-                      <span className="font-medium">{pred.predicted_speed.toFixed(0)} km/h</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Predicted Congestion:</span>
-                      <span className="font-medium">{(pred.predicted_congestion * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Confidence:</span>
-                      <span className="font-medium">{(pred.confidence * 100).toFixed(0)}%</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground text-right mt-2">
-                      {pred.horizon_minutes} min horizon
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {filteredPredictions.map((pred) => (
+              <PredictionCard
+                key={`${pred.segment_id}-${pred.horizon_minutes}`}
+                prediction={pred}
+              />
             ))}
           </div>
 
-          {/* Comparison Chart */}
-          {predictions.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Current vs Predicted Speed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={predictions.slice(0, 10)}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="road_name" angle={-25} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-                    <YAxis label={{ value: 'km/h', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="current_speed" fill="#3b82f6" name="Current" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="predicted_speed" fill="#8b5cf6" name="Predicted" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
+          {filteredPredictions.length === 0 && (
+            <Card className="border border-slate-200 dark:border-slate-800 rounded-2xl p-8 text-center text-slate-400">
+              No corridors match the selected filter. Try selecting &ldquo;All&rdquo; or changing the time horizon.
             </Card>
           )}
 
-          {predictions.length === 0 && (
-            <Card>
-              <CardContent className="pt-6 text-center text-muted-foreground">
-                No predictions available. Select a segment or check backend.
-              </CardContent>
-            </Card>
+          {/* Model Projections Comparison Chart */}
+          {predictions.length > 0 && (
+            <PredictionChart
+              predictions={predictions}
+              horizon={Number(horizon)}
+            />
           )}
+
+          {/* ML Model Architecture Card */}
+          <div className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                  XGBoost Traffic Speed Regressor
+                </h4>
+              </div>
+              <span className="text-[11px] font-mono bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
+                xgb_speed_model.pkl
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Trained on historical Bangalore TomTom probe data and OpenWeather records across 25 arterial segments. Features evaluated include: <code className="text-[11px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">hour_of_day</code>, <code className="text-[11px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">day_of_week</code>, <code className="text-[11px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">precipitation</code>, <code className="text-[11px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">free_flow_speed</code>, and rolling speed lags.
+            </p>
+          </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -1,221 +1,249 @@
 'use client';
 
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAnalytics } from '@/lib/api/client';
-import type { AnalyticsData, CongestionLevel } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
-import {
-  PieChart, Pie, Cell, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
-} from 'recharts';
-import { AlertTriangle, Activity, Gauge, MapPin } from 'lucide-react';
-import { CONGESTION_COLORS } from '@/lib/congestion';
+import type { AnalyticsData } from '@/types';
+import { PageContainer } from '@/components/layout/page-container';
+import { DashboardMetricCard } from '@/components/dashboard/metric-card';
+import { CongestionDistributionChart } from '@/components/analytics/congestion-distribution-chart';
+import { HourlyTrafficChart } from '@/components/analytics/hourly-traffic-chart';
+import { CongestedRoadsChart } from '@/components/analytics/congested-roads-chart';
+import { SpeedComparisonChart } from '@/components/analytics/speed-comparison-chart';
+import { IncidentStatsChart } from '@/components/analytics/incident-stats-chart';
 
-const PIE_COLORS: Record<CongestionLevel, string> = {
-  LOW: '#22c55e',
-  MODERATE: '#eab308',
-  HIGH: '#f97316',
-  SEVERE: '#ef4444',
-};
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  Activity, 
+  Car, 
+  MapPin, 
+  AlertTriangle, 
+  Download, 
+  RefreshCw, 
+  Filter, 
+  Clock 
+} from 'lucide-react';
+import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
 
 export default function AnalyticsPage() {
-  const { data: res, isLoading, error, refetch } = useQuery({
+  const [timeRange, setTimeRange] = useState('24h');
+  const [roadFilter, setRoadFilter] = useState('ALL');
+
+  const { data: res, isLoading, error, refetch, isRefetching } = useQuery({
     queryKey: ['analytics'],
     queryFn: getAnalytics,
+    refetchInterval: 60000,
   });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6 pt-2">
-        <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-80" />)}
-        </div>
-      </div>
-    );
-  }
+  const analytics = res?.data as AnalyticsData | undefined;
+  const dataMode = res?.data_mode || 'demo';
+
+  // Export report as CSV function
+  const handleExportCSV = () => {
+    if (!analytics) return;
+
+    let csv = "Road Name,Congestion Level,Congestion Ratio %,Current Speed (km/h),Free Flow Speed (km/h)\n";
+    analytics.top_congested_roads.forEach(road => {
+      csv += `"${road.road_name}",${road.congestion_level},${Math.round(road.congestion_ratio * 100)},${Math.round(road.current_speed)},${Math.round(road.free_flow_speed)}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `bangalore-traffic-analytics-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (error) {
     return (
-      <div className="space-y-6 pt-2">
-        <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <Card className="border-red-200">
-          <CardContent className="pt-6 flex flex-col items-center gap-4">
-            <AlertTriangle className="h-10 w-10 text-red-500" />
-            <p>Failed to load analytics data. Is the backend running?</p>
-            <Button variant="outline" onClick={() => refetch()}>Retry</Button>
+      <PageContainer
+        title="Traffic Analytics"
+        subtitle="Corridor performance metrics, congestion distribution, and velocity tracking."
+      >
+        <Card className="border-rose-200 dark:border-rose-900 bg-white dark:bg-slate-900 rounded-2xl">
+          <CardContent className="pt-8 pb-8 flex flex-col items-center justify-center gap-3">
+            <AlertTriangle className="h-10 w-10 text-rose-500" />
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">Failed to retrieve traffic analytics</h3>
+            <p className="text-xs text-slate-500 text-center max-w-sm">
+              Please verify that the backend API service is running on port 8000.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="rounded-xl mt-2">
+              <RefreshCw className="h-3.5 w-3.5 mr-2" /> Retry Fetch
+            </Button>
           </CardContent>
         </Card>
-      </div>
+      </PageContainer>
     );
   }
 
-  const analytics = res?.data as AnalyticsData;
-  if (!analytics) return null;
+  const congestionLevel = analytics?.overall_level || 'LOW';
+  const colorInfo = CONGESTION_COLORS[congestionLevel] || CONGESTION_COLORS.LOW;
+  const congestionPct = Math.round((analytics?.overall_congestion || 0) * 100);
+
+  // Filter top congested roads if filter applied
+  const filteredRoads = (analytics?.top_congested_roads ?? []).filter(r => {
+    if (roadFilter === 'ORR') return r.road_name.toLowerCase().includes('ring');
+    if (roadFilter === 'TECH') return r.road_name.toLowerCase().includes('whitefield') || r.road_name.toLowerCase().includes('electronic') || r.road_name.toLowerCase().includes('sarjapur');
+    return true;
+  });
 
   return (
-    <div className="space-y-6 pt-2">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-        <Badge variant="outline" className={res?.data_mode === 'live' ? 'border-green-500 text-green-500' : 'border-yellow-500 text-yellow-500'}>
-          {res?.data_mode === 'live' ? '● LIVE' : '● DEMO'}
-        </Badge>
-      </div>
+    <PageContainer
+      title="Traffic Analytics"
+      subtitle="Corridor performance metrics, congestion distribution, and velocity tracking across Bangalore."
+      dataMode={dataMode}
+      actions={
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={!analytics || isLoading}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
+          </Button>
 
-      {/* Overview Cards */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isRefetching}
+            className="h-9 px-3 gap-1.5 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
+        </div>
+      }
+    >
+      {/* 4 Top KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Congestion</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(analytics.overall_congestion * 100).toFixed(0)}%</div>
-            <Badge className={`mt-1 ${CONGESTION_COLORS[analytics.overall_level]?.text} ${CONGESTION_COLORS[analytics.overall_level]?.bg}`}>
-              {analytics.overall_level}
-            </Badge>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Average Speed</CardTitle>
-            <Gauge className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.avg_speed.toFixed(0)} km/h</div>
-            <p className="text-xs text-muted-foreground mt-1">Across all segments</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Segments Monitored</CardTitle>
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.total_segments}</div>
-            <p className="text-xs text-muted-foreground mt-1">Bangalore roads</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.total_incidents}</div>
-            <p className="text-xs text-muted-foreground mt-1">Currently active</p>
-          </CardContent>
-        </Card>
+        <DashboardMetricCard
+          title="Overall Congestion"
+          value={isLoading ? "--" : `${congestionPct}%`}
+          subtitle="Monitored grid capacity"
+          icon={Activity}
+          iconColor="text-blue-600 dark:text-blue-400"
+          badgeText={getCongestionLabel(congestionLevel)}
+          badgeClassName={`${colorInfo.bg} ${colorInfo.text} ${colorInfo.border}`}
+        />
+
+        <DashboardMetricCard
+          title="Average Speed"
+          value={isLoading ? "--" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
+          subtitle="Citywide velocity metric"
+          icon={Car}
+          iconColor="text-emerald-600 dark:text-emerald-400"
+          badgeText="Baseline 45 km/h"
+          badgeClassName="bg-slate-100 text-slate-700 border-slate-200"
+        />
+
+        <DashboardMetricCard
+          title="Segments Monitored"
+          value={isLoading ? "--" : (analytics?.total_segments || 25)}
+          subtitle="Arterial Bangalore roads"
+          icon={MapPin}
+          iconColor="text-indigo-600 dark:text-indigo-400"
+          badgeText="100% BLR GRID"
+          badgeClassName="bg-indigo-50 text-indigo-700 border-indigo-200"
+        />
+
+        <DashboardMetricCard
+          title="Active Incidents"
+          value={isLoading ? "--" : (analytics?.total_incidents || 0)}
+          subtitle="Current traffic obstructions"
+          icon={AlertTriangle}
+          iconColor="text-amber-600 dark:text-amber-400"
+          badgeText="LIVE SENSORS"
+          badgeClassName="bg-amber-50 text-amber-700 border-amber-200"
+        />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Congestion Distribution */}
-        <Card>
-          <CardHeader><CardTitle>Congestion Distribution</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={analytics.congestion_distribution}
-                  cx="50%" cy="50%"
-                  outerRadius={100}
-                  dataKey="count"
-                  nameKey="level"
-                  label={({ name, value }: { name?: string; value?: number }) => `${name || ''} ${value || 0}`}
-                >
-                  {analytics.congestion_distribution.map((entry) => (
-                    <Cell key={entry.level} fill={PIE_COLORS[entry.level]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* Filter and Time Range Selector Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" /> Time Range:
+          </span>
+          {[
+            { id: '24h', label: 'Today (24h)' },
+            { id: 'morning', label: 'Morning Rush (8-10 AM)' },
+            { id: 'evening', label: 'Evening Rush (5-8 PM)' },
+            { id: 'offpeak', label: 'Off-Peak' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTimeRange(item.id)}
+              className={`px-3 py-1 text-xs font-semibold rounded-xl transition-all ${
+                timeRange === item.id
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Hourly Traffic Pattern */}
-        <Card>
-          <CardHeader><CardTitle>Hourly Traffic Pattern</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={analytics.hourly_patterns}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="hour" label={{ value: 'Hour (IST)', position: 'insideBottom', offset: -5 }} />
-                <YAxis yAxisId="left" label={{ value: 'Speed (km/h)', angle: -90, position: 'insideLeft' }} />
-                <YAxis yAxisId="right" orientation="right" domain={[0, 1]} label={{ value: 'Congestion', angle: 90, position: 'insideRight' }} />
-                <Tooltip />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="avg_speed" name="Avg Speed" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                <Line yAxisId="right" type="monotone" dataKey="avg_congestion" name="Congestion" stroke="#ef4444" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Top Congested Roads */}
-        <Card>
-          <CardHeader><CardTitle>Top Congested Roads</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={analytics.top_congested_roads.slice(0, 8)} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" domain={[0, 1]} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} />
-                <YAxis type="category" dataKey="road_name" width={160} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: unknown) => `${(Number(v) * 100).toFixed(0)}%`} />
-                <Bar dataKey="congestion_ratio" name="Congestion" radius={[0, 4, 4, 0]}>
-                  {analytics.top_congested_roads.slice(0, 8).map((entry) => (
-                    <Cell key={entry.road_name} fill={PIE_COLORS[entry.congestion_level]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Speed vs Free-Flow */}
-        <Card>
-          <CardHeader><CardTitle>Speed vs Free-Flow Comparison</CardTitle></CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={analytics.speed_vs_freeflow.slice(0, 8)}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="road_name" angle={-30} textAnchor="end" height={80} tick={{ fontSize: 10 }} />
-                <YAxis label={{ value: 'km/h', angle: -90, position: 'insideLeft' }} />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="current_speed" name="Current Speed" fill="#f97316" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="free_flow_speed" name="Free Flow" fill="#22c55e" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Incident Statistics */}
-        {analytics.incident_stats.length > 0 && (
-          <Card className="lg:col-span-2">
-            <CardHeader><CardTitle>Incident Statistics by Type</CardTitle></CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={analytics.incident_stats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="type" tickFormatter={(v) => v.replace('_', ' ')} />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip labelFormatter={(v: unknown) => String(v ?? '').replace('_', ' ')} />
-                  <Bar dataKey="count" name="Count" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
+        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+          <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
+            <Filter className="h-3.5 w-3.5" /> Corridor:
+          </span>
+          {[
+            { id: 'ALL', label: 'All Roads' },
+            { id: 'ORR', label: 'Ring Roads' },
+            { id: 'TECH', label: 'Tech Hubs' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setRoadFilter(cat.id)}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-xl border transition-all ${
+                roadFilter === cat.id
+                  ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-300'
+                  : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-80 w-full rounded-2xl" />
+          ))}
+        </div>
+      ) : analytics ? (
+        <div className="space-y-6">
+          {/* Charts Row 1: Congestion Distribution & Hourly Pattern */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <CongestionDistributionChart data={analytics.congestion_distribution} />
+            <HourlyTrafficChart data={analytics.hourly_patterns} />
+          </div>
+
+          {/* Charts Row 2: Top Congested Roads & Speed vs Free-Flow */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+            <CongestedRoadsChart roads={filteredRoads} />
+            <SpeedComparisonChart data={analytics.speed_vs_freeflow} />
+          </div>
+
+          {/* Charts Row 3: Incidents by classification */}
+          {analytics.incident_stats.length > 0 && (
+            <div className="w-full">
+              <IncidentStatsChart data={analytics.incident_stats} />
+            </div>
+          )}
+        </div>
+      ) : null}
+    </PageContainer>
   );
 }
