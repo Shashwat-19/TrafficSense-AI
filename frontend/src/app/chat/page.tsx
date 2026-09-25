@@ -1,21 +1,17 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { useState, useRef, useEffect, useCallback, Suspense, type KeyboardEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Bot,
-  User,
-  Send,
-  Trash2,
-  RotateCcw,
-  Sparkles,
-  MapPin,
-  CloudRain,
-  AlertTriangle,
-  Route,
-  Loader2,
+import { PageContainer } from '@/components/layout/page-container';
+import { MessageBubble } from '@/components/chatbot/message-bubble';
+import { ConversationList } from '@/components/chatbot/conversation-list';
+import { 
+  Bot, 
+  Send, 
+  Trash2, 
+  Loader2, 
+  SlidersHorizontal 
 } from 'lucide-react';
 import { sendChatMessage, clearChatConversation } from '@/lib/api/client';
 import type { ChatMessage } from '@/types';
@@ -23,44 +19,22 @@ import type { ChatMessage } from '@/types';
 const WELCOME_MESSAGE: ChatMessage = {
   id: 'welcome',
   role: 'assistant',
-  content:
-    "Hi! I'm your TrafficSense AI assistant. I can help you with live traffic conditions, congestion predictions, incidents, weather, routes, and traffic analytics for Bangalore. Ask me anything!",
+  content: "Hello! I am TrafficSense AI, your real-time traffic intelligence assistant for Bangalore. I have live access to arterial corridor speeds, congestion forecasts via XGBoost, incident reports, and route alternatives across the city. How can I assist your commute or operations today?",
   timestamp: new Date().toISOString(),
 };
 
-const QUICK_ACTIONS = [
-  { label: 'Current traffic in Bangalore', icon: MapPin },
-  { label: 'Traffic on Outer Ring Road', icon: MapPin },
-  { label: 'Traffic prediction for 30 minutes', icon: Sparkles },
-  { label: 'Major incidents', icon: AlertTriangle },
-  { label: 'Weather and traffic', icon: CloudRain },
-  { label: 'Find a less congested route from Koramangala to Whitefield', icon: Route },
-];
+function ChatInner() {
+  const searchParams = useSearchParams();
+  const initialPrompt = searchParams.get('prompt');
 
-export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const [, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Auto-scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      const el = scrollRef.current;
-      // Use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight;
-      });
-    }
-  }, [messages]);
-
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   const handleSend = useCallback(
     async (messageText?: string) => {
@@ -68,7 +42,6 @@ export default function ChatPage() {
       if (!text || isLoading) return;
 
       setInput('');
-      setError(null);
 
       // Add user message
       const userMsg: ChatMessage = {
@@ -78,7 +51,7 @@ export default function ChatPage() {
         timestamp: new Date().toISOString(),
       };
 
-      // Add loading placeholder
+      // Loading placeholder
       const loadingMsg: ChatMessage = {
         id: `loading-${Date.now()}`,
         role: 'assistant',
@@ -112,14 +85,11 @@ export default function ChatPage() {
           assistantMsg,
         ]);
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to send message';
-        setError(errorMessage);
-
+        const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
         const errorMsg: ChatMessage = {
           id: `error-${Date.now()}`,
           role: 'assistant',
-          content: `⚠️ ${errorMessage}. Please try again.`,
+          content: `⚠️ ${errorMessage}. Please check your connection and try again.`,
           timestamp: new Date().toISOString(),
           isError: true,
         };
@@ -136,6 +106,25 @@ export default function ChatPage() {
     [input, isLoading, conversationId]
   );
 
+  // Auto-scroll on message updates
+  useEffect(() => {
+    if (scrollRef.current) {
+      const el = scrollRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [messages]);
+
+  // If initialPrompt in URL query, automatically fire it after mount
+  useEffect(() => {
+    if (!initialPrompt) return;
+    const timer = setTimeout(() => {
+      handleSend(initialPrompt);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [initialPrompt, handleSend]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -148,168 +137,109 @@ export default function ChatPage() {
       try {
         await clearChatConversation(conversationId);
       } catch {
-        // ignore cleanup errors
+        // ignore
       }
     }
     setMessages([WELCOME_MESSAGE]);
     setConversationId(undefined);
-    setError(null);
     inputRef.current?.focus();
   };
 
   const handleRetry = () => {
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
-    if (lastUserMsg) {
-      // Remove the error message
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (lastUser) {
       setMessages((prev) => prev.filter((m) => !m.isError));
-      handleSend(lastUserMsg.content);
+      handleSend(lastUser.content);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-5rem)] pt-2">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">AI Assistant</h2>
-          <p className="text-sm text-muted-foreground">
-            Ask about traffic, routes, incidents, weather, and predictions
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {conversationId && (
-            <Badge variant="outline" className="text-xs font-mono">
-              {conversationId.slice(0, 8)}
-            </Badge>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClearConversation}
-            className="gap-1"
-          >
-            <Trash2 className="h-4 w-4" />
-            Clear
-          </Button>
-        </div>
+    <div className="relative w-full h-[calc(100vh-8.5rem)] min-h-[600px] rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-sm flex bg-white dark:bg-slate-900">
+      {/* LEFT: Conversation & Suggested Topics Drawer */}
+      <div className={`hidden md:block transition-all duration-300 ${sidebarOpen ? 'w-72' : 'w-0 overflow-hidden'}`}>
+        <ConversationList
+          conversationId={conversationId}
+          onNewChat={handleClearConversation}
+          onSelectPrompt={(p) => handleSend(p)}
+          isLoading={isLoading}
+        />
       </div>
 
-      <Card className="flex-1 flex flex-col min-h-0">
-        {/* Messages */}
-        <CardContent className="flex-1 p-0 min-h-0">
-          <div
-            ref={scrollRef}
-            className="h-full overflow-y-auto p-4 space-y-4"
-          >
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${
-                  msg.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                {msg.role === 'assistant' && (
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                  </div>
-                )}
+      {/* MAIN: Chat Conversation Window */}
+      <div className="flex-1 flex flex-col min-w-0 bg-slate-50/30 dark:bg-slate-900/60">
+        {/* Chat Window Header */}
+        <div className="h-14 px-4 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="hidden md:flex h-8 w-8 text-slate-500 hover:text-slate-800"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
 
-                <div
-                  className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : msg.isError
-                        ? 'bg-destructive/10 text-destructive border border-destructive/20'
-                        : 'bg-muted'
-                  }`}
-                >
-                  {msg.isLoading ? (
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm">Thinking...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-sm whitespace-pre-wrap break-words">
-                        {msg.content}
-                      </div>
-                      {msg.tools_used && msg.tools_used.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {msg.tools_used.map((tool, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">
-                              {tool.replace(/_/g, ' ')}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {msg.isError && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleRetry}
-                          className="mt-2 gap-1 h-7 text-xs"
-                        >
-                          <RotateCcw className="h-3 w-3" />
-                          Retry
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {msg.role === 'user' && (
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center">
-                      <User className="h-4 w-4" />
-                    </div>
-                  </div>
-                )}
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+                <Bot className="h-4 w-4" />
               </div>
-            ))}
-          </div>
-        </CardContent>
-
-        {/* Quick Actions (shown only when no user messages) */}
-        {messages.length <= 1 && (
-          <div className="px-4 pb-2">
-            <p className="text-xs text-muted-foreground mb-2">Try asking:</p>
-            <div className="flex flex-wrap gap-2">
-              {QUICK_ACTIONS.map((action) => (
-                <Button
-                  key={action.label}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 gap-1"
-                  onClick={() => handleSend(action.label)}
-                  disabled={isLoading}
-                >
-                  <action.icon className="h-3 w-3" />
-                  {action.label}
-                </Button>
-              ))}
+              <div>
+                <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white block leading-none">
+                  TrafficSense Assistant
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">
+                  Amazon Bedrock • Tool-Calling Active
+                </span>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Input Area */}
-        <div className="border-t p-4">
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearConversation}
+              className="h-8 px-2.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-lg gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Clear</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Messages Stream */}
+        <div
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5"
+        >
+          {messages.map((msg) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onRetry={handleRetry}
+            />
+          ))}
+        </div>
+
+        {/* Input Bar */}
+        <div className="p-3 sm:p-4 bg-white dark:bg-slate-900 border-t border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-end gap-2 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
             <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about traffic, routes, incidents..."
-              className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm min-h-[40px] max-h-[120px] focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="Ask about Bangalore traffic speeds, predictions, routes, or incidents..."
+              className="flex-1 resize-none bg-transparent px-2 py-1 text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none min-h-[38px] max-h-[120px]"
               rows={1}
               disabled={isLoading}
             />
+
             <Button
               onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-10 w-10 flex-shrink-0"
+              className="h-9 w-9 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shrink-0 shadow-xs"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -318,11 +248,30 @@ export default function ChatPage() {
               )}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            Press Enter to send, Shift+Enter for new line
-          </p>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-2 mt-1.5">
+            <span>Press Enter to send, Shift+Enter for new line</span>
+            <span className="hidden sm:inline">Powered by AWS Bedrock Tools</span>
+          </div>
         </div>
-      </Card>
+      </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <PageContainer
+      title="AI Traffic Assistant"
+      subtitle="Conversational assistant with tool access for live Bangalore traffic intelligence."
+      className="pb-2"
+    >
+      <Suspense fallback={
+        <div className="w-full h-[600px] bg-white dark:bg-slate-900 rounded-2xl flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      }>
+        <ChatInner />
+      </Suspense>
+    </PageContainer>
   );
 }
