@@ -6,12 +6,15 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { TrafficSegment } from '@/types';
 import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
+import { getMapTileConfig } from '@/lib/map-config';
 
 interface DashboardMapPreviewProps {
   segments: TrafficSegment[];
 }
 
 export default function DashboardMapPreview({ segments }: DashboardMapPreviewProps) {
+  const mapTileConfig = React.useMemo(() => getMapTileConfig(), []);
+
   return (
     <div className="w-full h-full relative">
       <MapContainer
@@ -23,7 +26,9 @@ export default function DashboardMapPreview({ segments }: DashboardMapPreviewPro
         style={{ width: '100%', height: '100%', background: '#f8fafc' }}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution={mapTileConfig.attribution}
+          url={mapTileConfig.url}
+          maxZoom={mapTileConfig.maxZoom}
         />
 
         {segments.map((segment) => {

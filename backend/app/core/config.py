@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Strip any accidental angle brackets or quotes
+        if self.TOMTOM_API_KEY:
+            self.TOMTOM_API_KEY = self.TOMTOM_API_KEY.strip("<> '\"")
+        if self.OPENWEATHER_API_KEY:
+            self.OPENWEATHER_API_KEY = self.OPENWEATHER_API_KEY.strip("<> '\"")
         if self.AWS_ACCESS_KEY_ID:
             self.AWS_ACCESS_KEY_ID = self.AWS_ACCESS_KEY_ID.strip("<> '\"")
         if self.AWS_SECRET_ACCESS_KEY:

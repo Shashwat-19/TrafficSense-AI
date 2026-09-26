@@ -128,7 +128,25 @@ def _generate_mock_incidents() -> List[Incident]:
 
 # ── Cache ──────────────────────────────────────────────────────────────────
 
-_incident_cache: TTLCache = TTLCache(maxsize=1, ttl=settings.TRAFFIC_CACHE_TTL)
+_incident_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.TRAFFIC_CACHE_TTL)
+
+_ICON_TO_TYPE = {
+    1: IncidentType.ACCIDENT,
+    6: IncidentType.CONGESTION,
+    7: IncidentType.ROAD_CLOSURE,
+    8: IncidentType.ROAD_CLOSURE,
+    9: IncidentType.CONSTRUCTION,
+    11: IncidentType.OBSTRUCTION,
+    14: IncidentType.OBSTRUCTION,
+}
+
+_MAGNITUDE_TO_SEVERITY = {
+    0: IncidentSeverity.LOW,
+    1: IncidentSeverity.LOW,
+    2: IncidentSeverity.MODERATE,
+    3: IncidentSeverity.HIGH,
+    4: IncidentSeverity.CRITICAL,
+}
 
 
 class IncidentService:
@@ -139,19 +157,106 @@ class IncidentService:
         severity: str | None = None,
         incident_type: str | None = None,
     ) -> Tuple[List[dict], str]:
-        cache_key = "demo_incidents"
-        cached = _incident_cache.get(cache_key)
-        if cached is None:
-            incidents = _generate_mock_incidents()
-            cached = [inc.model_dump(mode="json") for inc in incidents]
-            _incident_cache[cache_key] = cached
+        if settings.TOMTOM_API_KEY:
+            items, mode = self._fetch_live_incidents()
+        else:
+            items, mode = self._get_demo_incidents()
 
-        result = cached
-
+        result = items
         # Apply filters
         if severity:
             result = [i for i in result if i["severity"] == severity.upper()]
         if incident_type:
             result = [i for i in result if i["type"] == incident_type.upper()]
 
-        return result, "demo"
+        return result, mode
+
+    def _get_demo_incidents(self) -> Tuple[List[dict], str]:
+        cache_key = "demo_incidents"
+        cached = _incident_cache.get(cache_key)
+        if cached is None:
+            incidents = _generate_mock_incidents()
+            cached = [inc.model_dump(mode="json") for inc in incidents]
+            _incident_cache[cache_key] = cached
+        return cached, "demo"
+
+    def _fetch_live_incidents(self) -> Tuple[List[dict], str]:
+        cache_key = "live_incidents"
+        cached = _incident_cache.get(cache_key)
+        if cached is not None:
+            return cached, "live"
+
+        import httpx
+        import logging
+        logger = logging.getLogger(__name__)
+
+        url = "https://api.tomtom.com/traffic/services/5/incidentDetails"
+        params = {
+            "bbox": "77.45,12.80,77.78,13.15",
+            "fields": "{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay}}}",
+            "language": "en-GB",
+            "categoryFilter": "0,1,2,3,4,5,6,7,8,9,10,11,14",
+            "timeValidityFilter": "present",
+            "key": settings.TOMTOM_API_KEY,
+        }
+
+        try:
+            with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
+                resp = client.get(url, params=params)
+                if resp.status_code == 200:
+                    raw_incidents = resp.json().get("incidents", [])
+                    now = datetime.now(tz=timezone.utc)
+                    parsed_incidents: List[Incident] = []
+
+                    for idx, raw in enumerate(raw_incidents[:15]):
+                        props = raw.get("properties", {})
+                        geom = raw.get("geometry", {})
+                        coords = geom.get("coordinates", [])
+
+                        # Derive representative coordinate (first point or point)
+                        if geom.get("type") == "Point" and len(coords) >= 2:
+                            lng, lat = coords[0], coords[1]
+                        elif geom.get("type") == "LineString" and len(coords) > 0 and len(coords[0]) >= 2:
+                            lng, lat = coords[0][0], coords[0][1]
+                        else:
+                            continue
+
+                        icon_cat = props.get("iconCategory", 0)
+                        mag = props.get("magnitudeOfDelay", 1)
+                        inc_type = _ICON_TO_TYPE.get(icon_cat, IncidentType.OTHER)
+                        inc_sev = _MAGNITUDE_TO_SEVERITY.get(mag, IncidentSeverity.MODERATE)
+
+                        events = props.get("events", [])
+                        event_desc = events[0].get("description") if events else ""
+                        from_road = props.get("from") or props.get("to") or "Bangalore Corridor"
+                        description = f"{event_desc} on {from_road}".strip() if event_desc else f"Traffic incident on {from_road}"
+
+                        start_str = props.get("startTime")
+                        try:
+                            start_time = datetime.fromisoformat(start_str.replace("Z", "+00:00")) if start_str else now
+                        except Exception:
+                            start_time = now
+
+                        parsed_incidents.append(Incident(
+                            id=f"live-inc-{idx+1:03d}",
+                            type=inc_type,
+                            severity=inc_sev,
+                            latitude=round(lat, 5),
+                            longitude=round(lng, 5),
+                            description=description,
+                            road_name=from_road,
+                            start_time=start_time,
+                            end_time=None,
+                            source="live",
+                        ))
+
+                    if parsed_incidents:
+                        result = [inc.model_dump(mode="json") for inc in parsed_incidents]
+                        _incident_cache[cache_key] = result
+                        return result, "live"
+                elif resp.status_code in (401, 403):
+                    logger.warning("TomTom Incident API key authentication failed (HTTP %s).", resp.status_code)
+        except Exception as e:
+            logger.error("Error fetching live TomTom incidents: %s", e)
+
+        return self._get_demo_incidents()

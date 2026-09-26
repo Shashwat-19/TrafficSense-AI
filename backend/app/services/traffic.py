@@ -7,12 +7,15 @@ realistic time-varying mock data for Bangalore (demo mode).
 
 import random
 import math
+import logging
 from datetime import datetime, timezone
 from typing import List, Tuple
 from cachetools import TTLCache, cached
 
 from app.core.config import settings
 from app.models.schemas import TrafficSegment, CongestionLevel
+
+logger = logging.getLogger(__name__)
 
 
 # ── Congestion calculation ─────────────────────────────────────────────────
@@ -153,12 +156,78 @@ class TrafficService:
     # -- live (TomTom) --------------------------------------------------------
 
     def _fetch_live_traffic(self) -> Tuple[List[dict], str]:
-        """
-        Placeholder for real TomTom Traffic Flow API integration.
+        """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors."""
+        cache_key = "live_traffic"
+        cached = _traffic_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
-        When TOMTOM_API_KEY is set this method will call:
-        GET https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json
-        and normalize the response into TrafficSegment models.
-        """
-        # TODO: implement real TomTom call with httpx
+        if not settings.TOMTOM_API_KEY:
+            return self._get_demo_traffic()
+
+        import httpx
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        now = datetime.now(tz=timezone.utc)
+        live_segments: List[TrafficSegment] = []
+
+        def _fetch_segment(seg: dict) -> TrafficSegment | None:
+            url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
+            params = {
+                "point": f"{seg['lat']},{seg['lng']}",
+                "unit": "KMPH",
+                "key": settings.TOMTOM_API_KEY,
+            }
+            try:
+                with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
+                    resp = client.get(url, params=params)
+                    if resp.status_code == 200:
+                        flow_data = resp.json().get("flowSegmentData", {})
+                        current_speed = float(flow_data.get("currentSpeed", seg["ffs"]))
+                        free_flow = float(flow_data.get("freeFlowSpeed", seg["ffs"]))
+                        confidence = float(flow_data.get("confidence", 0.95))
+                        delay = float(max(0, flow_data.get("currentTravelTime", 0) - flow_data.get("freeFlowTravelTime", 0)))
+                        congestion = calculate_congestion(current_speed, free_flow)
+                        level = get_congestion_level(congestion)
+                        return TrafficSegment(
+                            id=seg["id"],
+                            road_name=seg["road_name"],
+                            latitude=seg["lat"],
+                            longitude=seg["lng"],
+                            current_speed=round(current_speed, 1),
+                            free_flow_speed=round(free_flow, 1),
+                            congestion_ratio=round(congestion, 3),
+                            congestion_level=level,
+                            delay_seconds=round(delay, 0),
+                            confidence=round(confidence, 2),
+                            timestamp=now,
+                            source="live",
+                        )
+                    elif resp.status_code in (401, 403):
+                        logger.warning(
+                            "TomTom API authentication failed (HTTP %s). Check TOMTOM_API_KEY in backend/.env.",
+                            resp.status_code
+                        )
+                        return None
+            except Exception as e:
+                logger.debug("Failed to fetch TomTom live segment for %s: %s", seg["road_name"], e)
+            return None
+
+        try:
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                futures = [executor.submit(_fetch_segment, seg) for seg in BANGALORE_SEGMENTS]
+                for f in as_completed(futures):
+                    res = f.result()
+                    if res:
+                        live_segments.append(res)
+
+            if live_segments:
+                id_map = {s.id: s for s in live_segments}
+                ordered_segments = [id_map[seg["id"]] for seg in BANGALORE_SEGMENTS if seg["id"] in id_map]
+                result = [s.model_dump(mode="json") for s in ordered_segments]
+                _traffic_cache[cache_key] = (result, "live")
+                return result, "live"
+        except Exception as e:
+            logger.error("Error fetching live TomTom traffic flow: %s", e)
+
         return self._get_demo_traffic()

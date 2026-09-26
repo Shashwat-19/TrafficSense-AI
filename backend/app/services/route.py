@@ -131,11 +131,83 @@ class RouteService:
         return response.model_dump(mode="json"), "demo"
 
     def _fetch_live_routes(self, req: RouteRequest) -> Tuple[dict, str]:
-        """
-        Placeholder for TomTom Routing API integration.
+        """Fetch live routes from TomTom Routing API with traffic delay calculations."""
+        if not settings.TOMTOM_API_KEY:
+            return self._get_demo_routes(req)
 
-        When TOMTOM_API_KEY is set this method will call:
-        GET https://api.tomtom.com/routing/1/calculateRoute/{origin}:{dest}/json
-        """
-        # TODO: implement real TomTom routing
+        import httpx
+        import logging
+        logger = logging.getLogger(__name__)
+
+        url = f"https://api.tomtom.com/routing/1/calculateRoute/{req.origin_lat},{req.origin_lng}:{req.destination_lat},{req.destination_lng}/json"
+        params = {
+            "key": settings.TOMTOM_API_KEY,
+            "traffic": "true",
+            "maxAlternatives": 2,
+            "computeTravelTimeFor": "all",
+        }
+        try:
+            with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
+                resp = client.get(url, params=params)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    routes = data.get("routes", [])
+                    if routes:
+                        alternatives = []
+                        route_names = ["Via Fastest Route", "Alternative Route 1", "Alternative Route 2"]
+                        origin = RoutePoint(latitude=req.origin_lat, longitude=req.origin_lng)
+                        dest = RoutePoint(latitude=req.destination_lat, longitude=req.destination_lng)
+
+                        for idx, r in enumerate(routes[:3]):
+                            summary = r.get("summary", {})
+                            length_meters = summary.get("lengthInMeters", 0)
+                            dist_km = round(length_meters / 1000.0, 1)
+                            travel_time = summary.get("travelTimeInSeconds", 0)
+                            traffic_delay = summary.get("trafficDelayInSeconds", 0)
+                            no_traffic_time = summary.get("noTrafficTravelTimeInSeconds", travel_time)
+
+                            avg_speed = (dist_km / (travel_time / 3600.0)) if travel_time > 0 else 40.0
+                            free_flow_speed = (dist_km / (no_traffic_time / 3600.0)) if no_traffic_time > 0 else 50.0
+                            congestion = calculate_congestion(avg_speed, free_flow_speed)
+                            level = get_congestion_level(congestion)
+
+                            raw_points = []
+                            for leg in r.get("legs", []):
+                                for pt in leg.get("points", []):
+                                    raw_points.append(RoutePoint(latitude=pt["latitude"], longitude=pt["longitude"]))
+
+                            if len(raw_points) > 25:
+                                step = len(raw_points) // 20
+                                points = [raw_points[0]] + [raw_points[i] for i in range(step, len(raw_points) - 1, step)] + [raw_points[-1]]
+                            else:
+                                points = raw_points or [origin, dest]
+
+                            alternatives.append(RouteAlternative(
+                                id=f"route-{idx+1}",
+                                name=route_names[idx] if idx < len(route_names) else f"Alternative {idx+1}",
+                                distance_km=dist_km,
+                                travel_time_seconds=travel_time,
+                                delay_seconds=traffic_delay,
+                                congestion_level=level,
+                                congestion_ratio=round(congestion, 3),
+                                points=points,
+                                summary=f"{dist_km} km • {travel_time // 60} min",
+                            ))
+
+                        if req.avoid_congestion:
+                            alternatives.sort(key=lambda r: r.congestion_ratio)
+                        else:
+                            alternatives.sort(key=lambda r: r.travel_time_seconds)
+
+                        response = RouteResponse(
+                            origin=origin,
+                            destination=dest,
+                            alternatives=alternatives,
+                        )
+                        return response.model_dump(mode="json"), "live"
+                elif resp.status_code in (401, 403):
+                    logger.warning("TomTom Routing API key authentication failed (HTTP %s).", resp.status_code)
+        except Exception as e:
+            logger.error("Error fetching live TomTom routes: %s", e)
+
         return self._get_demo_routes(req)

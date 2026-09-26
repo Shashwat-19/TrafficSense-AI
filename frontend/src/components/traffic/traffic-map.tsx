@@ -33,6 +33,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
+import { getMapTileConfig } from '@/lib/map-config';
 import { TrafficLegend } from './traffic-legend';
 import { RoadDetails } from './road-details';
 
@@ -134,6 +135,7 @@ export default function TrafficMapComponent() {
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const mapTileConfig = useMemo(() => getMapTileConfig(), []);
 
   const {
     data: trafficRes,
@@ -317,8 +319,9 @@ export default function TrafficMapComponent() {
           {flyTarget && <MapViewController center={flyTarget} zoom={14} />}
 
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            attribution={mapTileConfig.attribution}
+            url={mapTileConfig.url}
+            maxZoom={mapTileConfig.maxZoom}
           />
 
           {/* Traffic Flow Road Segments */}

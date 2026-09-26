@@ -6,6 +6,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { RouteAlternative, CongestionLevel } from '@/types';
 import { CONGESTION_COLORS } from '@/lib/congestion';
+import { getMapTileConfig } from '@/lib/map-config';
 
 interface RouteMapPreviewProps {
   origin: { name: string; lat: number; lng: number };
@@ -65,6 +66,8 @@ export default function RouteMapPreview({
     ...alternatives.flatMap(a => a.points.map(p => [p.latitude, p.longitude] as [number, number])),
   ];
 
+  const mapTileConfig = React.useMemo(() => getMapTileConfig(), []);
+
   return (
     <div className="w-full h-full min-h-[380px] rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 relative shadow-sm">
       <MapContainer
@@ -76,8 +79,9 @@ export default function RouteMapPreview({
         <MapBoundsFitter points={allCoordinates} />
 
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution={mapTileConfig.attribution}
+          url={mapTileConfig.url}
+          maxZoom={mapTileConfig.maxZoom}
         />
 
         {/* Origin Marker */}
