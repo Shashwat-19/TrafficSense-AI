@@ -66,6 +66,7 @@ export default function RoutesPage() {
   const handleSwap = () => {
     setOriginPreset(destPreset);
     setDestPreset(originPreset);
+    setSelectedRouteId(undefined);
     setSearchEnabled(true);
   };
 
@@ -90,7 +91,7 @@ export default function RoutesPage() {
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 Origin Point
               </label>
-              <Select value={originPreset} onValueChange={(v) => { if (v) setOriginPreset(v); }}>
+              <Select value={originPreset} onValueChange={(v) => { if (v) { setOriginPreset(v); setSelectedRouteId(undefined); } }}>
                 <SelectTrigger className="h-10 text-xs rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                   <SelectValue placeholder="Select origin" />
                 </SelectTrigger>
@@ -124,7 +125,7 @@ export default function RoutesPage() {
                 <span className="h-2 w-2 rounded-full bg-rose-500" />
                 Destination Point
               </label>
-              <Select value={destPreset} onValueChange={(v) => { if (v) setDestPreset(v); }}>
+              <Select value={destPreset} onValueChange={(v) => { if (v) { setDestPreset(v); setSelectedRouteId(undefined); } }}>
                 <SelectTrigger className="h-10 text-xs rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                   <SelectValue placeholder="Select destination" />
                 </SelectTrigger>

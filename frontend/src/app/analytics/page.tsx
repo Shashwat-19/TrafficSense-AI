@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
 
     let csv = "Road Name,Congestion Level,Congestion Ratio %,Current Speed (km/h),Free Flow Speed (km/h)\n";
     analytics.top_congested_roads.forEach(road => {
-      csv += `"${road.road_name}",${road.congestion_level},${Math.round(road.congestion_ratio * 100)},${Math.round(road.current_speed)},${Math.round(road.free_flow_speed)}\n`;
+      csv += `"${road.road_name.replace(/"/g, '""')}",${road.congestion_level},${Math.round(road.congestion_ratio * 100)},${Math.round(road.current_speed)},${Math.round(road.free_flow_speed)}\n`;
     });
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

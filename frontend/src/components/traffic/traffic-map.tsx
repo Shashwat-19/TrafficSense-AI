@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { 
@@ -135,6 +135,7 @@ export default function TrafficMapComponent() {
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
+  const appliedRoadRef = useRef<string | null>(null);
   const mapTileConfig = useMemo(() => getMapTileConfig(), []);
 
   const {
@@ -163,11 +164,13 @@ export default function TrafficMapComponent() {
   const dataMode = trafficRes?.data_mode || 'demo';
 
   // Handle initial URL param selection asynchronously
+  // Applied once per initialRoad so 60s refetches do not overwrite the user's selection
   useEffect(() => {
-    if (!initialRoad || traffic.length === 0) return;
+    if (!initialRoad || traffic.length === 0 || appliedRoadRef.current === initialRoad) return;
     const match = traffic.find(s => s.road_name.toLowerCase().includes(initialRoad.toLowerCase()));
     if (match) {
       const timer = setTimeout(() => {
+        appliedRoadRef.current = initialRoad;
         setSelectedSegment(match);
         setFlyTarget([match.latitude, match.longitude]);
         setPanelOpen(true);

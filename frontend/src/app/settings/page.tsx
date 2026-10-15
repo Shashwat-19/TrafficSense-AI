@@ -49,6 +49,8 @@ export default function SettingsPage() {
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
     },
+    // Drop the optimistic value so the toggle falls back to the server's preference
+    onError: () => setNotificationsEnabled(null),
   });
 
   const isNotificationsOn = notificationsEnabled !== null
@@ -134,6 +136,11 @@ export default function SettingsPage() {
                   {isNotificationsOn ? 'Enabled' : 'Disabled'}
                 </Button>
               </div>
+              {mutation.isError && (
+                <p className="text-xs text-rose-600 dark:text-rose-400">
+                  Could not save the notification setting. Your change was reverted.
+                </p>
+              )}
 
               <Separator />
 

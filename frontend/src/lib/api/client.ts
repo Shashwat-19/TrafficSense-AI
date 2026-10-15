@@ -13,7 +13,8 @@ import type {
   ChatResponse,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Empty base means relative /api/v1 paths, which the Vercel rewrites serve.
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 class ApiError extends Error {
   status: number;
@@ -138,6 +139,7 @@ export async function updateUserPreferences(prefs: Partial<UserPreferences>) {
 
 export async function healthCheck() {
   const res = await fetch(`${API_BASE}/api/v1/health`);
+  if (!res.ok) throw new ApiError(`Health check failed (${res.status})`, res.status);
   return res.json();
 }
 
@@ -187,5 +189,6 @@ export async function clearChatConversation(
 ): Promise<{ cleared: boolean; conversation_id: string }> {
   const url = `${API_BASE}/api/v1/chat/${conversationId}`;
   const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) throw new ApiError(`Clear conversation failed (${res.status})`, res.status);
   return res.json();
 }

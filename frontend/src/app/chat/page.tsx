@@ -35,6 +35,7 @@ function ChatInner() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef<string | null>(null); // ?prompt= fires once
 
   const handleSend = useCallback(
     async (messageText?: string) => {
@@ -120,6 +121,8 @@ function ChatInner() {
   useEffect(() => {
     if (!initialPrompt) return;
     const timer = setTimeout(() => {
+      if (autoSentRef.current === initialPrompt) return;
+      autoSentRef.current = initialPrompt;
       handleSend(initialPrompt);
     }, 100);
     return () => clearTimeout(timer);

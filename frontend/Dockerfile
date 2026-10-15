@@ -9,6 +9,8 @@ COPY . .
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# ARG only (no ENV) so the key is available to the build but not stored in image config
+ARG NEXT_PUBLIC_TOMTOM_API_KEY=
 
 RUN npm run build && npm prune --production
 
@@ -18,10 +20,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY --from=builder /app/.next ./.next
+COPY --chown=node:node --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/public ./public
+
+# The node:20-alpine image ships a non-root "node" user (uid 1000)
+USER node
 
 EXPOSE 3000
 
