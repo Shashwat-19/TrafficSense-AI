@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
             <AlertTriangle className="h-10 w-10 text-rose-500" />
             <h3 className="font-bold text-base text-slate-900 dark:text-white">Failed to retrieve traffic analytics</h3>
             <p className="text-xs text-slate-500 text-center max-w-sm">
-              Please verify that the backend API service is running on port 8000.
+              Please verify that the backend API service is running and reachable.
             </p>
             <Button variant="outline" size="sm" onClick={() => refetch()} className="rounded-xl mt-2">
               <RefreshCw className="h-3.5 w-3.5 mr-2" /> Retry Fetch
@@ -83,7 +83,7 @@ export default function AnalyticsPage() {
 
   const congestionLevel = analytics?.overall_level || 'LOW';
   const colorInfo = CONGESTION_COLORS[congestionLevel] || CONGESTION_COLORS.LOW;
-  const congestionPct = Math.round((analytics?.overall_congestion || 0) * 100);
+  const congestionPct = analytics ? Math.round(analytics.overall_congestion * 100) : null;
 
   // Filter top congested roads if filter applied
   const filteredRoads = (analytics?.top_congested_roads ?? []).filter(r => {
@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <DashboardMetricCard
           title="Overall Congestion"
-          value={isLoading ? "--" : `${congestionPct}%`}
+          value={isLoading ? "--" : congestionPct === null ? "N/A" : `${congestionPct}%`}
           subtitle="Monitored grid capacity"
           icon={Activity}
           iconColor="text-blue-600 dark:text-blue-400"
@@ -137,32 +137,26 @@ export default function AnalyticsPage() {
 
         <DashboardMetricCard
           title="Average Speed"
-          value={isLoading ? "--" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
+          value={isLoading ? "--" : analytics ? `${Math.round(analytics.avg_speed)} km/h` : "N/A"}
           subtitle="Citywide velocity metric"
           icon={Car}
           iconColor="text-emerald-600 dark:text-emerald-400"
-          badgeText="Baseline 45 km/h"
-          badgeClassName="bg-slate-100 text-slate-700 border-slate-200"
         />
 
         <DashboardMetricCard
           title="Segments Monitored"
-          value={isLoading ? "--" : (analytics?.total_segments || 25)}
-          subtitle="Arterial Bangalore roads"
+          value={isLoading ? "--" : (analytics ? analytics.total_segments : "N/A")}
+          subtitle="Road segments in the current feed"
           icon={MapPin}
           iconColor="text-indigo-600 dark:text-indigo-400"
-          badgeText="100% BLR GRID"
-          badgeClassName="bg-indigo-50 text-indigo-700 border-indigo-200"
         />
 
         <DashboardMetricCard
           title="Active Incidents"
-          value={isLoading ? "--" : (analytics?.total_incidents || 0)}
+          value={isLoading ? "--" : (analytics ? analytics.total_incidents : "N/A")}
           subtitle="Current traffic obstructions"
           icon={AlertTriangle}
           iconColor="text-amber-600 dark:text-amber-400"
-          badgeText="LIVE SENSORS"
-          badgeClassName="bg-amber-50 text-amber-700 border-amber-200"
         />
       </div>
 

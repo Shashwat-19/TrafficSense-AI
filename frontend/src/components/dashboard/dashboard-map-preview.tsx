@@ -2,19 +2,17 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import { MapContainer, CircleMarker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { TrafficSegment } from '@/types';
 import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
-import { getMapTileConfig } from '@/lib/map-config';
+import { MapTileLayer } from '@/components/map/map-tile-layer';
 
 interface DashboardMapPreviewProps {
   segments: TrafficSegment[];
 }
 
 export default function DashboardMapPreview({ segments }: DashboardMapPreviewProps) {
-  const mapTileConfig = React.useMemo(() => getMapTileConfig(), []);
-
   return (
     <div className="w-full h-full relative">
       <MapContainer
@@ -25,11 +23,7 @@ export default function DashboardMapPreview({ segments }: DashboardMapPreviewPro
         attributionControl={false}
         style={{ width: '100%', height: '100%', background: '#f8fafc' }}
       >
-        <TileLayer
-          attribution={mapTileConfig.attribution}
-          url={mapTileConfig.url}
-          maxZoom={mapTileConfig.maxZoom}
-        />
+        <MapTileLayer />
 
         {segments.map((segment) => {
           const style = CONGESTION_COLORS[segment.congestion_level] || CONGESTION_COLORS.LOW;

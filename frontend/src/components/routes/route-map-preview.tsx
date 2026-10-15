@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { RouteAlternative, CongestionLevel } from '@/types';
 import { CONGESTION_COLORS } from '@/lib/congestion';
-import { getMapTileConfig } from '@/lib/map-config';
+import { MapTileLayer } from '@/components/map/map-tile-layer';
 
 interface RouteMapPreviewProps {
   origin: { name: string; lat: number; lng: number };
@@ -66,8 +66,6 @@ export default function RouteMapPreview({
     ...alternatives.flatMap(a => a.points.map(p => [p.latitude, p.longitude] as [number, number])),
   ];
 
-  const mapTileConfig = React.useMemo(() => getMapTileConfig(), []);
-
   return (
     <div className="w-full h-full min-h-[380px] rounded-2xl overflow-hidden border border-slate-200/80 dark:border-slate-800 relative shadow-sm">
       <MapContainer
@@ -78,11 +76,7 @@ export default function RouteMapPreview({
       >
         <MapBoundsFitter points={allCoordinates} />
 
-        <TileLayer
-          attribution={mapTileConfig.attribution}
-          url={mapTileConfig.url}
-          maxZoom={mapTileConfig.maxZoom}
-        />
+        <MapTileLayer />
 
         {/* Origin Marker */}
         <Marker

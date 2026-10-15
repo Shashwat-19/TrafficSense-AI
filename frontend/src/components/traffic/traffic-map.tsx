@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { 
   MapContainer, 
-  TileLayer, 
   CircleMarker, 
   Popup, 
   Marker, 
@@ -33,7 +32,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
-import { getMapTileConfig } from '@/lib/map-config';
+import { MapTileLayer } from '@/components/map/map-tile-layer';
 import { TrafficLegend } from './traffic-legend';
 import { RoadDetails } from './road-details';
 
@@ -136,7 +135,6 @@ export default function TrafficMapComponent() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [flyTarget, setFlyTarget] = useState<[number, number] | null>(null);
   const appliedRoadRef = useRef<string | null>(null);
-  const mapTileConfig = useMemo(() => getMapTileConfig(), []);
 
   const {
     data: trafficRes,
@@ -222,7 +220,7 @@ export default function TrafficMapComponent() {
         <AlertTriangle className="h-10 w-10 text-rose-500 mb-3" />
         <h3 className="text-base font-bold text-slate-900 dark:text-white">Unable to Load Bangalore Traffic Map</h3>
         <p className="text-xs text-slate-500 mb-4 text-center max-w-sm">
-          Please verify backend connectivity on port 8000.
+          Please verify backend connectivity and try again.
         </p>
         <Button onClick={() => refetchTraffic()} variant="outline" size="sm" className="rounded-xl text-xs">
           <RefreshCw className="mr-2 h-3.5 w-3.5" /> Retry Connection
@@ -321,11 +319,7 @@ export default function TrafficMapComponent() {
         >
           {flyTarget && <MapViewController center={flyTarget} zoom={14} />}
 
-          <TileLayer
-            attribution={mapTileConfig.attribution}
-            url={mapTileConfig.url}
-            maxZoom={mapTileConfig.maxZoom}
-          />
+          <MapTileLayer />
 
           {/* Traffic Flow Road Segments */}
           {layers.trafficFlow && filteredSegments.map((segment) => {
