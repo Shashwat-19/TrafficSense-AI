@@ -1,6 +1,7 @@
 """Chat limits: one overall deadline across the tool loop, and one turn at a time per conversation."""
 
 import asyncio
+import threading
 import time
 
 from app.core.config import settings
@@ -26,6 +27,22 @@ class _RecordingBedrock:
     def converse(self, **kwargs):
         self.sent_roles.append([m["role"] for m in kwargs["messages"]])
         time.sleep(0.1)
+        return _answer()
+
+
+class _OverlapBedrock:
+    """Each call waits for the other to be inside converse at the same time, however slow the machine is."""
+
+    def __init__(self):
+        self.barrier = threading.Barrier(2)
+        self.overlapped = []
+
+    def converse(self, **kwargs):
+        try:
+            self.barrier.wait(timeout=2)
+            self.overlapped.append(True)
+        except threading.BrokenBarrierError:
+            self.overlapped.append(False)
         return _answer()
 
 
@@ -62,14 +79,14 @@ def test_same_conversation_turns_do_not_interleave():
 
 def test_different_conversations_stay_concurrent():
     service = chatbot.ChatbotService()
-    service._client = _RecordingBedrock()
+    service._client = _OverlapBedrock()
 
     async def scenario():
-        started = time.monotonic()
         await asyncio.gather(
             service.chat("one", conversation_id="a"),
             service.chat("two", conversation_id="b"),
         )
-        return time.monotonic() - started
 
-    assert asyncio.run(scenario()) < 0.19  # two 0.1s calls overlapped, not queued
+    asyncio.run(scenario())
+
+    assert service._client.overlapped == [True, True]  # both calls were inside converse together
