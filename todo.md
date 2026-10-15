@@ -4,8 +4,8 @@ Only the work that is left for you. Details are in `reviews.md`.
 
 ## Before merging
 
-- [ ] Commit and push the last small change (shared time-of-day table in `traffic.py` and `prediction.py`). It is in your working folder but not on GitHub yet.
-- [ ] Run `docker compose up --build` and confirm both containers start and healthy. None of the Docker changes (root `Dockerfile`, `frontend/Dockerfile`, `backend/Dockerfile`, `docker-compose.yml`) have been built.
+- [ ] Push `fix/code-review-fixes` to GitHub. The latest fixes (time-of-day table, prediction consistency, chat and route fixes) are committed locally only.
+- [ ] Run `docker compose up --build` and confirm both containers start and healthy. None of the Docker changes (root `Dockerfile`, `frontend/Dockerfile`, `backend/Dockerfile`, `docker-compose.yml`) have been built, because Docker is not installed on the machine used for the fixes.
 - [ ] Run a root `docker build -t trafficsense .` and check the unified image starts (`docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense`).
 - [ ] Open the pull request for `fix/code-review-fixes` and merge it into `main`.
 

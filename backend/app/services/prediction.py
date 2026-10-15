@@ -8,7 +8,7 @@ predict traffic conditions at 15 / 30 / 60 minute horizons.
 import logging
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
 
 import pandas as pd
@@ -38,7 +38,8 @@ _MODEL_PATH = os.path.join(
 _traffic_service = TrafficService()
 _weather_service = WeatherService()
 
-# Capped at the traffic TTL so a cached prediction never carries a current_speed older than the traffic cache.
+# Entries are (result, oldest traffic timestamp used); a hit is dropped once that traffic is older than
+# TRAFFIC_CACHE_TTL, so a served current_speed is never staler than the traffic cache allows.
 _prediction_cache: TTLCache = TTLCache(
     maxsize=64, ttl=min(settings.PREDICTION_CACHE_TTL, settings.TRAFFIC_CACHE_TTL)
 )
@@ -110,7 +111,9 @@ class PredictionService:
         cache_key = (segment_id, horizon)
         cached = cache_get(_prediction_cache, cache_key)
         if cached is not None:
-            return cached
+            result, traffic_born = cached
+            if datetime.now(timezone.utc) - traffic_born < timedelta(seconds=settings.TRAFFIC_CACHE_TTL):
+                return result
 
         model = _load_model()
         temperature, is_rainy = _current_weather()
@@ -118,6 +121,11 @@ class PredictionService:
         # Same source as /traffic/current, so current_speed agrees with it.
         traffic, traffic_mode = _traffic_service.get_current_traffic()
         live = {t["id"]: t for t in traffic}
+        # Segments without a timestamp (not expected) count as fresh.
+        traffic_born = min(
+            (datetime.fromisoformat(t["timestamp"]) for t in traffic if t.get("timestamp")),
+            default=datetime.now(timezone.utc),
+        )
         use_live_lag = traffic_mode == "live"
 
         now = datetime.now(tz=IST)
@@ -163,7 +171,7 @@ class PredictionService:
             predictions.append(pred)
 
         result = ([p.model_dump(mode="json") for p in predictions], mode)
-        cache_set(_prediction_cache, cache_key, result)
+        cache_set(_prediction_cache, cache_key, (result, traffic_born))
         return result
 
     def _ml_predict(
