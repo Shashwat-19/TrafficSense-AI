@@ -75,11 +75,18 @@ async def health_check():
 
 # ── Traffic ────────────────────────────────────────────────────────────────
 
+def _current_traffic_with_missing():
+    # Read missing names in the same worker thread that produced them
+    data, mode = traffic_service.get_current_traffic()
+    return data, mode, traffic_service.get_last_missing()
+
+
 @router.get("/traffic/current", response_model=AppResponse, tags=["Traffic"])
 async def get_current_traffic():
     """Get current traffic data for all monitored Bangalore segments."""
-    data, mode = await asyncio.to_thread(traffic_service.get_current_traffic)
-    return AppResponse(data=data, data_mode=mode, source="traffic")
+    data, mode, missing = await asyncio.to_thread(_current_traffic_with_missing)
+    warnings = [f"Missing live data for: {', '.join(missing)}"] if mode == "live" and missing else []
+    return AppResponse(data=data, data_mode=mode, source="traffic", warnings=warnings)
 
 
 @router.get("/traffic/incidents", response_model=AppResponse, tags=["Traffic"])

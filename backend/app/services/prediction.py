@@ -13,13 +13,19 @@ from typing import List, Tuple
 
 import pandas as pd
 
+from cachetools import TTLCache
+
+from app.core.config import settings
 from app.models.schemas import TrafficPrediction
 from app.services.traffic import (
     BANGALORE_SEGMENTS,
     TrafficService,
+    cache_get,
+    cache_set,
     calculate_congestion,
     get_congestion_level,
 )
+from app.services.weather import WeatherService
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +34,12 @@ _MODEL_PATH = os.path.join(
     os.path.dirname(__file__), "..", "models", "artifacts", "xgb_speed_model.pkl"
 )
 _traffic_service = TrafficService()
+_weather_service = WeatherService()
+
+# Capped at the traffic TTL so a cached prediction never carries a current_speed older than the traffic cache.
+_prediction_cache: TTLCache = TTLCache(
+    maxsize=64, ttl=min(settings.PREDICTION_CACHE_TTL, settings.TRAFFIC_CACHE_TTL)
+)
 
 
 def _load_model():
@@ -69,6 +81,18 @@ def _modelled_speed(ffs: float, hour: int, dow: int) -> float:
     return max(2.0, ffs * (1 - factor))
 
 
+def _current_weather() -> Tuple[float, int]:
+    """(temperature, is_rainy) from the weather service; training-mean placeholders on any error."""
+    try:
+        weather, _ = _weather_service.get_weather()
+        temperature = float(weather["temperature"])
+        is_rainy = int(weather.get("condition") in ("Rain", "Thunderstorm"))  # same rule as weather.py
+        return temperature, is_rainy
+    except Exception:
+        logger.warning("Weather unavailable for prediction; using placeholder temperature and dry weather.")
+        return 27.5, 0
+
+
 class PredictionService:
     """Traffic prediction using XGBoost or heuristic fallback."""
 
@@ -94,7 +118,13 @@ class PredictionService:
             if not segments:
                 raise ValueError(f"Unknown segment_id: {segment_id}")
 
+        cache_key = (segment_id, horizon)
+        cached = cache_get(_prediction_cache, cache_key)
+        if cached is not None:
+            return cached
+
         model = _load_model()
+        temperature, is_rainy = _current_weather()
 
         # Same source as /traffic/current, so current_speed agrees with it.
         traffic, traffic_mode = _traffic_service.get_current_traffic()
@@ -123,7 +153,8 @@ class PredictionService:
 
             if model is not None:
                 pred = self._ml_predict(
-                    model, seg, target_hour, target_dow, horizon, lag_speed, current_speed
+                    model, seg, target_hour, target_dow, horizon, lag_speed, current_speed,
+                    temperature, is_rainy,
                 )
                 mode = "ml_prediction"
             else:
@@ -132,11 +163,13 @@ class PredictionService:
 
             predictions.append(pred)
 
-        return [p.model_dump(mode="json") for p in predictions], mode
+        result = ([p.model_dump(mode="json") for p in predictions], mode)
+        cache_set(_prediction_cache, cache_key, result)
+        return result
 
     def _ml_predict(
         self, model, seg: dict, hour: int, dow: int, horizon: int,
-        lag_speed: float, current_speed: float,
+        lag_speed: float, current_speed: float, temperature: float, is_rainy: int,
     ) -> TrafficPrediction:
         ffs = seg["ffs"]
         lag_speed = max(2.0, min(ffs, lag_speed))  # same clip as training
@@ -150,9 +183,8 @@ class PredictionService:
             "free_flow_speed": ffs,
             "lag_speed_1h": lag_speed,
             "lag_congestion_1h": lag_congestion,
-            # No weather feed yet: training-mean temperature and dry weather.
-            "temperature": 27.5,
-            "is_rainy": 0,
+            "temperature": temperature,
+            "is_rainy": is_rainy,
         }])
         pred_speed = float(model.predict(features)[0])
         pred_speed = max(2.0, min(ffs, pred_speed))

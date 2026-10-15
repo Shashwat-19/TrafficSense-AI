@@ -152,6 +152,10 @@ def _generate_mock_segments() -> List[TrafficSegment]:
 
 _traffic_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.TRAFFIC_CACHE_TTL)  # demo and live keys
 _traffic_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)  # demo data served after a live failure
+# partial live results as (segments, missing_names); short TTL so a stuck segment costs one round per window
+_traffic_partial_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)
+# missing road names from the latest get_current_traffic call on this thread (the call runs in a worker thread)
+_missing_state = threading.local()
 
 
 class TrafficService:
@@ -159,9 +163,14 @@ class TrafficService:
 
     def get_current_traffic(self) -> Tuple[List[dict], str]:
         """Returns (list-of-segment-dicts, data_mode)."""
+        _missing_state.names = []
         if settings.TOMTOM_API_KEY:
             return self._fetch_live_traffic()
         return self._get_demo_traffic()
+
+    def get_last_missing(self) -> List[str]:
+        """Road names without live data in this thread's most recent get_current_traffic call."""
+        return list(getattr(_missing_state, "names", []))
 
     # -- demo -----------------------------------------------------------------
 
@@ -187,6 +196,11 @@ class TrafficService:
         cached = cache_get(_traffic_fallback_cache, cache_key)
         if cached is not None:
             return cached
+        partial = cache_get(_traffic_partial_cache, cache_key)
+        if partial is not None:
+            result, missing = partial
+            _missing_state.names = missing
+            return result, "live"
 
         import httpx
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -251,8 +265,10 @@ class TrafficService:
                 result = [s.model_dump(mode="json") for s in ordered_segments]
                 missing = [seg["road_name"] for seg in BANGALORE_SEGMENTS if seg["id"] not in id_map]
                 if missing:
-                    # Partial result: return it but do not cache, so the next request retries
+                    # Partial result: returned as live, cached briefly so a stuck segment is not re-fetched on every request
                     logger.warning("TomTom live traffic missing %d segments: %s", len(missing), ", ".join(missing))
+                    _missing_state.names = missing
+                    cache_set(_traffic_partial_cache, cache_key, (result, missing))
                     return result, "live"
                 cache_set(_traffic_cache, cache_key, (result, "live"))
                 return result, "live"

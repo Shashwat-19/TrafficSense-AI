@@ -370,15 +370,22 @@ def _exec_get_prediction(
     if horizon not in (15, 30, 60):
         horizon = 30
 
-    road_name = tool_input.get("road_name", "").lower()
+    road_name = (tool_input.get("road_name") or "").strip()
     segment_id = None
 
     if road_name:
         from app.services.traffic import BANGALORE_SEGMENTS
         for seg in BANGALORE_SEGMENTS:
-            if road_name in seg["road_name"].lower():
+            if road_name.lower() in seg["road_name"].lower():
                 segment_id = seg["id"]
                 break
+        if segment_id is None:
+            examples = ", ".join(s["road_name"] for s in BANGALORE_SEGMENTS[:5])
+            return (
+                f"I couldn't find a monitored road matching '{road_name}'. "
+                f"Try one of these, e.g. {examples}, or ask without a road name for all roads.",
+                actions,
+            )
 
     data, mode = _prediction_service.get_predictions(
         segment_id=segment_id, horizon=horizon

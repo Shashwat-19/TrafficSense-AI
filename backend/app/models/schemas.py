@@ -207,21 +207,21 @@ class Alert(BaseModel):
 # ── User ───────────────────────────────────────────────────────────────────
 
 class SavedLocation(BaseModel):
-    id: str
-    name: str
-    latitude: float
-    longitude: float
-    label: str = ""  # e.g., "Home", "Work"
+    id: str = Field(max_length=64)
+    name: str = Field(max_length=100)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    label: str = Field("", max_length=30)  # e.g., "Home", "Work"
 
 
 class RecentRoute(BaseModel):
-    id: str
-    origin_name: str
-    destination_name: str
-    origin_lat: float
-    origin_lng: float
-    destination_lat: float
-    destination_lng: float
+    id: str = Field(max_length=64)
+    origin_name: str = Field(max_length=200)
+    destination_name: str = Field(max_length=200)
+    origin_lat: float = Field(ge=-90, le=90)
+    origin_lng: float = Field(ge=-180, le=180)
+    destination_lat: float = Field(ge=-90, le=90)
+    destination_lng: float = Field(ge=-180, le=180)
     searched_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
@@ -259,6 +259,7 @@ class AppResponse(BaseModel):
     data_mode: str = Field(description="'live' or 'demo'")
     last_updated: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     source: str = ""
+    warnings: List[str] = []
 
 
 # ── Chat ───────────────────────────────────────────────────────────────────

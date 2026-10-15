@@ -2,12 +2,20 @@
 TrafficSense AI — Application configuration.
 """
 
+import logging
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+# backend/.env resolved from this file, so the lookup works from any working directory
+_BACKEND_ENV = str(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings(BaseSettings):
     model_config = {
-        "env_file": (".env", "backend/.env", "../backend/.env"),
+        "env_file": (".env", "backend/.env", "../backend/.env", _BACKEND_ENV),
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
@@ -19,10 +27,9 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_NAME: str = "TrafficSense AI"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = True
-
+    DEBUG: bool = True  # dev-only: forced to False when APP_ENV=production
     # ── CORS ──────────────────────────────────────────────────────────────
-    # Accepts comma-separated origins string from .env
+    # Accepts comma-separated origins string from .env (localhost default is dev-only)
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     @property
@@ -31,9 +38,8 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # ── Bangalore defaults ────────────────────────────────────────────────
-    DEFAULT_LAT: float = 12.9716
-    DEFAULT_LNG: float = 77.5946
-    DEFAULT_RADIUS_KM: float = 15.0
+    DEFAULT_LAT: float = 12.9716  # dev-only: Bangalore fallback coordinates for weather lookups
+    DEFAULT_LNG: float = 77.5946  # dev-only: Bangalore fallback coordinates for weather lookups
 
     # ── Congestion thresholds (configurable) ──────────────────────────────
     CONGESTION_LOW: float = 0.25
@@ -48,7 +54,6 @@ class Settings(BaseSettings):
 
     # ── External API timeouts ─────────────────────────────────────────────
     API_TIMEOUT_SECONDS: int = 10
-    API_MAX_RETRIES: int = 3
 
     # ── Chatbot / AWS Bedrock ─────────────────────────────────────────────
     AWS_REGION: str = "us-east-1"
@@ -78,3 +83,6 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if not settings.TOMTOM_API_KEY:
+    logger.warning("TOMTOM_API_KEY is not set; live traffic, incident and route data will fall back to demo mode")
