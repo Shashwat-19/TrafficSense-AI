@@ -215,7 +215,7 @@ export default function DashboardPage() {
           subtitle={errorWeather ? "Failed to load weather" : weather ? `${weather.condition} • ${weather.humidity}% humidity` : "Bangalore microclimate"}
           icon={Cloud}
           iconColor="text-sky-600 dark:text-sky-400"
-          badgeText={errorWeather ? undefined : weather?.precipitation && weather.precipitation > 0 ? "WET ROADS" : "CLEAR"}
+          badgeText={errorWeather || weather?.temperature == null ? undefined : weather.precipitation && weather.precipitation > 0 ? "WET ROADS" : "CLEAR"}
           badgeClassName={weather?.precipitation && weather.precipitation > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
         />
       </div>

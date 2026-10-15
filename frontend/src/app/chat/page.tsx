@@ -121,12 +121,13 @@ function ChatInner() {
   useEffect(() => {
     if (!initialPrompt) return;
     const timer = setTimeout(() => {
-      if (autoSentRef.current === initialPrompt) return;
+      // Unmarked while a request is active: this effect re-runs when isLoading clears.
+      if (autoSentRef.current === initialPrompt || isLoading) return;
       autoSentRef.current = initialPrompt;
       handleSend(initialPrompt);
     }, 100);
     return () => clearTimeout(timer);
-  }, [initialPrompt, handleSend]);
+  }, [initialPrompt, handleSend, isLoading]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

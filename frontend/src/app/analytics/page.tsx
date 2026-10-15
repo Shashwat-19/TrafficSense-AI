@@ -131,7 +131,7 @@ export default function AnalyticsPage() {
           subtitle="Monitored grid capacity"
           icon={Activity}
           iconColor="text-blue-600 dark:text-blue-400"
-          badgeText={getCongestionLabel(congestionLevel)}
+          badgeText={congestionPct === null ? undefined : getCongestionLabel(congestionLevel)}
           badgeClassName={`${colorInfo.bg} ${colorInfo.text} ${colorInfo.border}`}
         />
 

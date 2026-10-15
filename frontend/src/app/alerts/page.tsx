@@ -60,7 +60,7 @@ export default function AlertsPage() {
   return (
     <PageContainer
       title="Intelligent Alert Center"
-      subtitle="Live alerts for severe congestion and major road incidents across Bangalore."
+      subtitle="Alerts for severe congestion and major road incidents across Bangalore."
       dataMode={dataMode}
       actions={
         <div className="flex items-center gap-2">
