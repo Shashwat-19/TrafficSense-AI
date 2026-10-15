@@ -184,7 +184,7 @@ class IncidentService:
         cache_key = "live_incidents"
         cached = _incident_cache.get(cache_key)
         if cached is not None:
-            return cached, "live"
+            return cached
 
         import httpx
         import logging
@@ -250,13 +250,16 @@ class IncidentService:
                             source="live",
                         ))
 
-                    if parsed_incidents:
-                        result = [inc.model_dump(mode="json") for inc in parsed_incidents]
-                        _incident_cache[cache_key] = result
-                        return result, "live"
+                    # A valid response with no incidents is a real empty result, not a reason for demo data
+                    result = [inc.model_dump(mode="json") for inc in parsed_incidents]
+                    _incident_cache[cache_key] = (result, "live")
+                    return result, "live"
                 elif resp.status_code in (401, 403):
                     logger.warning("TomTom Incident API key authentication failed (HTTP %s).", resp.status_code)
         except Exception as e:
             logger.error("Error fetching live TomTom incidents: %s", e)
 
-        return self._get_demo_incidents()
+        # Cache the demo fallback under the live key so an outage does not repeat the TomTom call on every request
+        fallback = self._get_demo_incidents()
+        _incident_cache[cache_key] = fallback
+        return fallback

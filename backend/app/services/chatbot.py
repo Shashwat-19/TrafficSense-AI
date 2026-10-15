@@ -6,6 +6,7 @@ backend, using AWS Bedrock Converse API with tool calling to access
 existing traffic services.
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
     ClientError,
@@ -77,21 +79,32 @@ class ConversationStore:
             "role": role,
             "content": [{"text": content}],
         })
-        # Prune to keep only the last N messages
-        if len(self._conversations[conversation_id]) > self._max_messages:
-            self._conversations[conversation_id] = (
-                self._conversations[conversation_id][-self._max_messages:]
-            )
+        self._prune(conversation_id)
 
     def add_raw_messages(self, conversation_id: str, messages: list[dict]) -> None:
         """Add raw Bedrock-format messages (used for tool-use turns)."""
         if conversation_id not in self._conversations:
             self._conversations[conversation_id] = []
         self._conversations[conversation_id].extend(messages)
-        if len(self._conversations[conversation_id]) > self._max_messages:
-            self._conversations[conversation_id] = (
-                self._conversations[conversation_id][-self._max_messages:]
-            )
+        self._prune(conversation_id)
+
+    def _prune(self, conversation_id: str) -> None:
+        """Keep the last N messages, starting the window at a plain user turn.
+
+        A tool-use/tool-result exchange is never split: cuts only happen at a
+        user message that carries text, not a toolResult, so no toolResult is
+        left without its toolUse.
+        """
+        messages = self._conversations[conversation_id]
+        if len(messages) <= self._max_messages:
+            return
+        messages = messages[-self._max_messages:]
+        start = next(
+            (i for i, m in enumerate(messages)
+             if m["role"] == "user" and not any("toolResult" in b for b in m["content"])),
+            len(messages),
+        )
+        self._conversations[conversation_id] = messages[start:]
 
     def clear(self, conversation_id: str) -> None:
         self._conversations.pop(conversation_id, None)
@@ -104,7 +117,10 @@ class ConversationStore:
 
 def _create_bedrock_client():
     """Create a boto3 Bedrock Runtime client."""
-    kwargs: dict[str, Any] = {"region_name": settings.AWS_REGION}
+    kwargs: dict[str, Any] = {
+        "region_name": settings.AWS_REGION,
+        "config": Config(read_timeout=settings.CHATBOT_REQUEST_TIMEOUT),
+    }
     if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
         kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
         kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
@@ -247,7 +263,8 @@ class ChatbotService:
         working_messages = [m for m in messages]  # shallow copy
 
         for round_num in range(max_tool_rounds):
-            response = self.client.converse(
+            response = await asyncio.to_thread(
+                self.client.converse,
                 modelId=settings.BEDROCK_MODEL_ID,
                 system=[{"text": SYSTEM_PROMPT}],
                 messages=working_messages,

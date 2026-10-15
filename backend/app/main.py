@@ -19,8 +19,8 @@ app = FastAPI(
         "focused on Bangalore, India."
     ),
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.APP_ENV == "production" else "/docs",
+    redoc_url=None if settings.APP_ENV == "production" else "/redoc",
 )
 
 # ── Middleware ─────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
-        "docs": "/docs",
+        "docs": app.docs_url,
         "api_base": "/api/v1",
         "endpoints": {
             "traffic": "/api/v1/traffic/current",

@@ -4,6 +4,8 @@ TrafficSense AI — API v1 endpoints.
 All routes are prefixed with /api/v1/ by the main app.
 """
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime, timezone
 from typing import Optional
@@ -52,7 +54,7 @@ async def health_check():
 @router.get("/traffic/current", response_model=AppResponse, tags=["Traffic"])
 async def get_current_traffic():
     """Get current traffic data for all monitored Bangalore segments."""
-    data, mode = traffic_service.get_current_traffic()
+    data, mode = await asyncio.to_thread(traffic_service.get_current_traffic)
     return AppResponse(data=data, data_mode=mode, source="traffic")
 
 
@@ -62,7 +64,7 @@ async def get_incidents(
     type: Optional[str] = Query(None, alias="incident_type", description="Filter by type: ACCIDENT, ROAD_CLOSURE, etc."),
 ):
     """Get current traffic incidents."""
-    data, mode = incident_service.get_incidents(severity=severity, incident_type=type)
+    data, mode = await asyncio.to_thread(incident_service.get_incidents, severity=severity, incident_type=type)
     return AppResponse(data=data, data_mode=mode, source="incidents")
 
 
@@ -71,7 +73,7 @@ async def get_incidents(
 @router.get("/weather", response_model=AppResponse, tags=["Weather"])
 async def get_weather():
     """Get current weather data for Bangalore."""
-    data, mode = weather_service.get_weather()
+    data, mode = await asyncio.to_thread(weather_service.get_weather)
     return AppResponse(data=data, data_mode=mode, source="weather")
 
 
@@ -85,7 +87,7 @@ async def get_predictions(
     """Get traffic predictions for segments."""
     if horizon not in (15, 30, 60):
         raise HTTPException(status_code=400, detail="Horizon must be 15, 30, or 60 minutes")
-    data, mode = prediction_service.get_predictions(segment_id=segment_id, horizon=horizon)
+    data, mode = await asyncio.to_thread(prediction_service.get_predictions, segment_id=segment_id, horizon=horizon)
     return AppResponse(data=data, data_mode=mode, source="predictions")
 
 
@@ -94,7 +96,7 @@ async def get_predictions(
 @router.post("/routes", response_model=AppResponse, tags=["Routes"])
 async def get_routes(req: RouteRequest):
     """Calculate route alternatives between origin and destination."""
-    data, mode = route_service.get_routes(req)
+    data, mode = await asyncio.to_thread(route_service.get_routes, req)
     return AppResponse(data=data, data_mode=mode, source="routes")
 
 
@@ -103,7 +105,7 @@ async def get_routes(req: RouteRequest):
 @router.get("/analytics", response_model=AppResponse, tags=["Analytics"])
 async def get_analytics():
     """Get aggregated traffic analytics."""
-    data, mode = analytics_service.get_analytics()
+    data, mode = await asyncio.to_thread(analytics_service.get_analytics)
     return AppResponse(data=data, data_mode=mode, source="analytics")
 
 
@@ -115,7 +117,7 @@ async def get_alerts(
     severity: Optional[str] = Query(None, description="Filter by severity"),
 ):
     """Get active traffic alerts."""
-    data, mode = alerts_service.get_alerts(alert_type=type, severity=severity)
+    data, mode = await asyncio.to_thread(alerts_service.get_alerts, alert_type=type, severity=severity)
     return AppResponse(data=data, data_mode=mode, source="alerts")
 
 
@@ -124,14 +126,14 @@ async def get_alerts(
 @router.get("/users/preferences", response_model=AppResponse, tags=["Users"])
 async def get_user_preferences():
     """Get user preferences (dev mode: in-memory)."""
-    data, mode = user_service.get_preferences()
+    data, mode = await asyncio.to_thread(user_service.get_preferences)
     return AppResponse(data=data, data_mode=mode, source="users")
 
 
 @router.put("/users/preferences", response_model=AppResponse, tags=["Users"])
 async def update_user_preferences(prefs: dict):
     """Update user preferences."""
-    data, mode = user_service.update_preferences(prefs)
+    data, mode = await asyncio.to_thread(user_service.update_preferences, prefs)
     return AppResponse(data=data, data_mode=mode, source="users")
 
 
@@ -183,7 +185,7 @@ async def chat(req: ChatRequest):
 )
 async def clear_chat(conversation_id: str):
     """Clear conversation history for a given ID."""
-    cleared = chatbot_service.clear_conversation(conversation_id)
+    cleared = await asyncio.to_thread(chatbot_service.clear_conversation, conversation_id)
     return {
         "cleared": cleared,
         "conversation_id": conversation_id,
