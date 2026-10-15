@@ -125,6 +125,11 @@ export default function DashboardPage() {
   const congestionLevel = analytics?.overall_level || 'LOW';
   const colorInfo = CONGESTION_COLORS[congestionLevel] || CONGESTION_COLORS.LOW;
   const congestionPct = Math.round((analytics?.overall_congestion || 0) * 100);
+  // Real mean free-flow speed of the monitored segments (the old fixed 45 km/h was invented)
+  const avgFreeFlow = segments.length
+    ? segments.reduce((sum, s) => sum + s.free_flow_speed, 0) / segments.length
+    : null;
+  const avgSpeed = analytics?.avg_speed ?? 0;
   const criticalIncidentsCount = incidents.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH').length;
 
   return (
@@ -181,14 +186,14 @@ export default function DashboardPage() {
         <DashboardMetricCard
           title="Average Speed"
           value={loadingAnalytics ? "--" : errorAnalytics ? "N/A" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
-          subtitle={errorAnalytics ? "Failed to load speed data" : "Typical free-flow: 45 km/h"}
+          subtitle={errorAnalytics ? "Failed to load speed data" : avgFreeFlow ? `Free-flow average: ${Math.round(avgFreeFlow)} km/h` : "Citywide average"}
           icon={Car}
           iconColor="text-emerald-600 dark:text-emerald-400"
-          badgeText={errorAnalytics ? undefined : `${Math.max(0, 45 - Math.round(analytics?.avg_speed || 0))} km/h drag`}
+          badgeText={errorAnalytics || !avgFreeFlow ? undefined : `${Math.max(0, Math.round(avgFreeFlow - avgSpeed))} km/h drag`}
           badgeClassName="bg-slate-100 text-slate-700 border-slate-200"
-          trend={errorAnalytics ? undefined : {
-            value: `${Math.round((analytics?.avg_speed || 0) / 45 * 100)}%`,
-            isGood: (analytics?.avg_speed || 0) > 30,
+          trend={errorAnalytics || !avgFreeFlow ? undefined : {
+            value: `${Math.round((avgSpeed / avgFreeFlow) * 100)}%`,
+            isGood: avgSpeed / avgFreeFlow > 0.7,
             label: "capacity",
           }}
         />
