@@ -8,14 +8,36 @@ realistic time-varying mock data for Bangalore (demo mode).
 import random
 import math
 import logging
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
-from cachetools import TTLCache, cached
+from cachetools import TTLCache
 
 from app.core.config import settings
 from app.models.schemas import TrafficSegment, CongestionLevel
 
 logger = logging.getLogger(__name__)
+
+IST = timezone(timedelta(hours=5, minutes=30))
+FALLBACK_CACHE_TTL = 20  # short TTL so live recovery is picked up quickly after an outage
+
+# TTLCache is not thread-safe and service calls run in worker threads (asyncio.to_thread)
+_cache_lock = threading.Lock()
+
+
+def cache_get(cache: TTLCache, key):
+    with _cache_lock:
+        return cache.get(key)
+
+
+def cache_set(cache: TTLCache, key, value) -> None:
+    with _cache_lock:
+        cache[key] = value
+
+
+def ist_hour(now: datetime) -> int:
+    """Hour of day in IST (UTC+5:30)."""
+    return now.astimezone(IST).hour
 
 
 # ── Congestion calculation ─────────────────────────────────────────────────
@@ -91,7 +113,7 @@ def _time_factor(hour: int) -> float:
 def _generate_mock_segments() -> List[TrafficSegment]:
     """Generate time-varying traffic data for all Bangalore segments."""
     now = datetime.now(tz=timezone.utc)
-    hour = (now.hour + 5) % 24  # IST offset (UTC+5:30 approx)
+    hour = ist_hour(now)
     base_factor = _time_factor(hour)
     segments: List[TrafficSegment] = []
 
@@ -129,6 +151,7 @@ def _generate_mock_segments() -> List[TrafficSegment]:
 # ── Cache ──────────────────────────────────────────────────────────────────
 
 _traffic_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.TRAFFIC_CACHE_TTL)  # demo and live keys
+_traffic_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)  # demo data served after a live failure
 
 
 class TrafficService:
@@ -144,13 +167,13 @@ class TrafficService:
 
     def _get_demo_traffic(self) -> Tuple[List[dict], str]:
         cache_key = "demo_traffic"
-        cached = _traffic_cache.get(cache_key)
+        cached = cache_get(_traffic_cache, cache_key)
         if cached is not None:
             return cached
 
         segments = _generate_mock_segments()
         result = [s.model_dump(mode="json") for s in segments]
-        _traffic_cache[cache_key] = (result, "demo")
+        cache_set(_traffic_cache, cache_key, (result, "demo"))
         return result, "demo"
 
     # -- live (TomTom) --------------------------------------------------------
@@ -158,12 +181,12 @@ class TrafficService:
     def _fetch_live_traffic(self) -> Tuple[List[dict], str]:
         """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors."""
         cache_key = "live_traffic"
-        cached = _traffic_cache.get(cache_key)
+        cached = cache_get(_traffic_cache, cache_key)
         if cached is not None:
             return cached
-
-        if not settings.TOMTOM_API_KEY:
-            return self._get_demo_traffic()
+        cached = cache_get(_traffic_fallback_cache, cache_key)
+        if cached is not None:
+            return cached
 
         import httpx
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -209,7 +232,7 @@ class TrafficService:
                     )
                     return None
             except Exception as e:
-                logger.debug("Failed to fetch TomTom live segment for %s: %s", seg["road_name"], e)
+                logger.debug("Failed to fetch TomTom live segment for %s: %s", seg["road_name"], type(e).__name__)
             return None
 
         try:
@@ -231,12 +254,12 @@ class TrafficService:
                     # Partial result: return it but do not cache, so the next request retries
                     logger.warning("TomTom live traffic missing %d segments: %s", len(missing), ", ".join(missing))
                     return result, "live"
-                _traffic_cache[cache_key] = (result, "live")
+                cache_set(_traffic_cache, cache_key, (result, "live"))
                 return result, "live"
         except Exception as e:
-            logger.error("Error fetching live TomTom traffic flow: %s", e)
+            logger.error("Error fetching live TomTom traffic flow: %s", type(e).__name__)
 
-        # Cache the demo fallback under the live key so an outage does not repeat 25 TomTom calls per request
+        # Short-lived demo fallback so an outage does not repeat 25 TomTom calls per request
         fallback = self._get_demo_traffic()
-        _traffic_cache[cache_key] = fallback
+        cache_set(_traffic_fallback_cache, cache_key, fallback)
         return fallback

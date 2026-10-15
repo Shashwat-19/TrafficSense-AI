@@ -6,11 +6,21 @@ All routes are prefixed with /api/v1/ by the main app.
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
-from app.models.schemas import AppResponse, RouteRequest
+from app.models.schemas import (
+    AlertSeverity,
+    AlertType,
+    AppResponse,
+    CONVERSATION_ID_PATTERN,
+    IncidentSeverity,
+    IncidentType,
+    RouteRequest,
+    UserPreferencesUpdate,
+)
 from app.services.traffic import TrafficService
 from app.services.incident import IncidentService
 from app.services.weather import WeatherService
@@ -23,6 +33,20 @@ from app.services.chatbot import ChatbotService
 from app.models.schemas import ChatRequest, ChatResponse
 
 router = APIRouter()
+
+
+def _validate_enum(value: Optional[str], enum_cls: type[Enum], label: str) -> Optional[str]:
+    """Return the upper-cased filter value, or raise 400 if it is not a member of enum_cls."""
+    if not value:
+        return None
+    normalized = value.strip().upper()
+    allowed = [m.value for m in enum_cls]
+    if normalized not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {label} '{value}'. Allowed values: {', '.join(allowed)}",
+        )
+    return normalized
 
 # ── Service singletons ────────────────────────────────────────────────────
 
@@ -64,6 +88,8 @@ async def get_incidents(
     type: Optional[str] = Query(None, alias="incident_type", description="Filter by type: ACCIDENT, ROAD_CLOSURE, etc."),
 ):
     """Get current traffic incidents."""
+    severity = _validate_enum(severity, IncidentSeverity, "severity")
+    type = _validate_enum(type, IncidentType, "incident type")
     data, mode = await asyncio.to_thread(incident_service.get_incidents, severity=severity, incident_type=type)
     return AppResponse(data=data, data_mode=mode, source="incidents")
 
@@ -87,7 +113,12 @@ async def get_predictions(
     """Get traffic predictions for segments."""
     if horizon not in (15, 30, 60):
         raise HTTPException(status_code=400, detail="Horizon must be 15, 30, or 60 minutes")
-    data, mode = await asyncio.to_thread(prediction_service.get_predictions, segment_id=segment_id, horizon=horizon)
+    try:
+        data, mode = await asyncio.to_thread(prediction_service.get_predictions, segment_id=segment_id, horizon=horizon)
+    except ValueError as e:
+        if str(e).startswith("Unknown segment_id"):
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        raise
     return AppResponse(data=data, data_mode=mode, source="predictions")
 
 
@@ -117,6 +148,8 @@ async def get_alerts(
     severity: Optional[str] = Query(None, description="Filter by severity"),
 ):
     """Get active traffic alerts."""
+    type = _validate_enum(type, AlertType, "alert type")
+    severity = _validate_enum(severity, AlertSeverity, "severity")
     data, mode = await asyncio.to_thread(alerts_service.get_alerts, alert_type=type, severity=severity)
     return AppResponse(data=data, data_mode=mode, source="alerts")
 
@@ -131,7 +164,7 @@ async def get_user_preferences():
 
 
 @router.put("/users/preferences", response_model=AppResponse, tags=["Users"])
-async def update_user_preferences(prefs: dict):
+async def update_user_preferences(prefs: UserPreferencesUpdate):
     """Update user preferences."""
     data, mode = await asyncio.to_thread(user_service.update_preferences, prefs)
     return AppResponse(data=data, data_mode=mode, source="users")
@@ -183,7 +216,9 @@ async def chat(req: ChatRequest):
     tags=["Chat"],
     summary="Clear a chat conversation",
 )
-async def clear_chat(conversation_id: str):
+async def clear_chat(
+    conversation_id: str = Path(..., min_length=1, max_length=64, pattern=CONVERSATION_ID_PATTERN),
+):
     """Clear conversation history for a given ID."""
     cleared = await asyncio.to_thread(chatbot_service.clear_conversation, conversation_id)
     return {

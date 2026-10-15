@@ -10,6 +10,7 @@ from typing import Tuple
 
 from app.models.schemas import (
     UserPreferences,
+    UserPreferencesUpdate,
     SavedLocation,
     RecentRoute,
     AlertType,
@@ -80,9 +81,10 @@ class UserService:
     def get_preferences(self) -> Tuple[dict, str]:
         return _user_prefs.model_dump(mode="json"), "demo"
 
-    def update_preferences(self, prefs: dict) -> Tuple[dict, str]:
+    def update_preferences(self, prefs: UserPreferencesUpdate) -> Tuple[dict, str]:
         global _user_prefs
         current = _user_prefs.model_dump()
-        current.update(prefs)
+        # Only fields the caller actually sent; explicit nulls are ignored.
+        current.update(prefs.model_dump(exclude_unset=True, exclude_none=True))
         _user_prefs = UserPreferences(**current)
         return _user_prefs.model_dump(mode="json"), "demo"

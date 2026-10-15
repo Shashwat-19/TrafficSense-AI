@@ -35,6 +35,7 @@ def create_training_data(n_days: int = 90, n_segments: int = 25) -> tuple[pd.Dat
 
     records: list[dict] = []
     free_flow_speeds = np.random.uniform(25, 80, n_segments)
+    prev_speed = None  # per-segment speed in the previous hour (None for the first hour)
 
     for day in range(n_days):
         dow = day % 7
@@ -65,6 +66,7 @@ def create_training_data(n_days: int = 90, n_segments: int = 25) -> tuple[pd.Dat
             if is_rainy:
                 time_factor *= 1.2
 
+            hour_speed = np.zeros(n_segments)
             for seg_idx in range(n_segments):
                 ffs = free_flow_speeds[seg_idx]
                 road_factor = time_factor * np.random.uniform(0.6, 1.4)
@@ -72,10 +74,13 @@ def create_training_data(n_days: int = 90, n_segments: int = 25) -> tuple[pd.Dat
 
                 speed = ffs * (1 - road_factor) + np.random.normal(0, 3)
                 speed = np.clip(speed, 2, ffs)
+                hour_speed[seg_idx] = speed
 
-                # Lag features (approximate: from same segment, 1h earlier)
-                lag_speed = ffs * (1 - time_factor * np.random.uniform(0.5, 1.2)) + np.random.normal(0, 2)
-                lag_speed = np.clip(lag_speed, 2, ffs)
+                # Lag features come from the previous hour's speed on the same
+                # segment, never from the hour the target was generated in.
+                if prev_speed is None:
+                    continue
+                lag_speed = prev_speed[seg_idx]
                 lag_congestion = np.clip(1 - lag_speed / ffs, 0, 1)
 
                 records.append({
@@ -91,6 +96,7 @@ def create_training_data(n_days: int = 90, n_segments: int = 25) -> tuple[pd.Dat
                     "is_rainy": is_rainy,
                     "speed": speed,
                 })
+            prev_speed = hour_speed
 
     df = pd.DataFrame(records)
     target = df.pop("speed").values
@@ -126,11 +132,12 @@ def train_model():
     print("\n[3/4] Training XGBoost model…")
     model = xgb.XGBRegressor(
         objective="reg:squarederror",
-        n_estimators=200,
+        n_estimators=1000,
         max_depth=6,
         learning_rate=0.1,
         subsample=0.8,
         colsample_bytree=0.8,
+        early_stopping_rounds=20,  # stop on the validation set, not the test set
         random_state=42,
     )
     model.fit(
@@ -138,6 +145,7 @@ def train_model():
         eval_set=[(X_val, y_val)],
         verbose=False,
     )
+    print(f"  Best iteration: {model.best_iteration} (of {model.n_estimators} max)")
 
     # Evaluate on test set
     print("\n[4/4] Evaluating on test set…")

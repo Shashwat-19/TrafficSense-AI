@@ -4,6 +4,8 @@ TrafficSense AI — Incident service.
 Generates realistic Bangalore traffic incidents for demo mode.
 """
 
+import hashlib
+import logging
 import random
 from datetime import datetime, timezone, timedelta
 from typing import List, Tuple
@@ -11,6 +13,9 @@ from cachetools import TTLCache
 
 from app.core.config import settings
 from app.models.schemas import Incident, IncidentType, IncidentSeverity
+from app.services.traffic import FALLBACK_CACHE_TTL, cache_get, cache_set, ist_hour
+
+logger = logging.getLogger(__name__)
 
 
 # ── Bangalore incident templates ───────────────────────────────────────────
@@ -94,7 +99,7 @@ _INCIDENT_TEMPLATES = [
 def _generate_mock_incidents() -> List[Incident]:
     """Pick a random subset of incidents to simulate live conditions."""
     now = datetime.now(tz=timezone.utc)
-    hour = (now.hour + 5) % 24  # IST
+    hour = ist_hour(now)
 
     # More incidents during peak hours
     if 8 <= hour <= 10 or 17 <= hour <= 20:
@@ -129,6 +134,7 @@ def _generate_mock_incidents() -> List[Incident]:
 # ── Cache ──────────────────────────────────────────────────────────────────
 
 _incident_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.TRAFFIC_CACHE_TTL)
+_incident_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)  # demo data after a live failure
 
 _ICON_TO_TYPE = {
     1: IncidentType.ACCIDENT,
@@ -173,27 +179,28 @@ class IncidentService:
 
     def _get_demo_incidents(self) -> Tuple[List[dict], str]:
         cache_key = "demo_incidents"
-        cached = _incident_cache.get(cache_key)
+        cached = cache_get(_incident_cache, cache_key)
         if cached is None:
             incidents = _generate_mock_incidents()
             cached = [inc.model_dump(mode="json") for inc in incidents]
-            _incident_cache[cache_key] = cached
+            cache_set(_incident_cache, cache_key, cached)
         return cached, "demo"
 
     def _fetch_live_incidents(self) -> Tuple[List[dict], str]:
         cache_key = "live_incidents"
-        cached = _incident_cache.get(cache_key)
+        cached = cache_get(_incident_cache, cache_key)
+        if cached is not None:
+            return cached
+        cached = cache_get(_incident_fallback_cache, cache_key)
         if cached is not None:
             return cached
 
         import httpx
-        import logging
-        logger = logging.getLogger(__name__)
 
         url = "https://api.tomtom.com/traffic/services/5/incidentDetails"
         params = {
             "bbox": "77.45,12.80,77.78,13.15",
-            "fields": "{incidents{type,geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay}}}",
+            "fields": "{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description,code},startTime,endTime,from,to,length,delay}}}",
             "language": "en-GB",
             "categoryFilter": "0,1,2,3,4,5,6,7,8,9,10,11,14",
             "timeValidityFilter": "present",
@@ -208,7 +215,7 @@ class IncidentService:
                     now = datetime.now(tz=timezone.utc)
                     parsed_incidents: List[Incident] = []
 
-                    for idx, raw in enumerate(raw_incidents[:15]):
+                    for raw in raw_incidents[:15]:
                         props = raw.get("properties", {})
                         geom = raw.get("geometry", {})
                         coords = geom.get("coordinates", [])
@@ -237,8 +244,16 @@ class IncidentService:
                         except Exception:
                             start_time = now
 
+                        # Stable id: TomTom's own id when present, else a hash of type + location
+                        raw_id = props.get("id") or raw.get("id")
+                        if raw_id:
+                            stable_id = str(raw_id)
+                        else:
+                            key = f"{inc_type.value}|{round(lat, 5)}|{round(lng, 5)}"
+                            stable_id = hashlib.sha1(key.encode()).hexdigest()[:12]
+
                         parsed_incidents.append(Incident(
-                            id=f"live-inc-{idx+1:03d}",
+                            id=f"live-inc-{stable_id}",
                             type=inc_type,
                             severity=inc_sev,
                             latitude=round(lat, 5),
@@ -252,14 +267,14 @@ class IncidentService:
 
                     # A valid response with no incidents is a real empty result, not a reason for demo data
                     result = [inc.model_dump(mode="json") for inc in parsed_incidents]
-                    _incident_cache[cache_key] = (result, "live")
+                    cache_set(_incident_cache, cache_key, (result, "live"))
                     return result, "live"
                 elif resp.status_code in (401, 403):
                     logger.warning("TomTom Incident API key authentication failed (HTTP %s).", resp.status_code)
         except Exception as e:
-            logger.error("Error fetching live TomTom incidents: %s", e)
+            logger.error("Error fetching live TomTom incidents: %s", type(e).__name__)
 
-        # Cache the demo fallback under the live key so an outage does not repeat the TomTom call on every request
+        # Short-lived demo fallback so an outage does not repeat the TomTom call on every request
         fallback = self._get_demo_incidents()
-        _incident_cache[cache_key] = fallback
+        cache_set(_incident_fallback_cache, cache_key, fallback)
         return fallback

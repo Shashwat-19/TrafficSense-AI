@@ -6,7 +6,7 @@ each backed by existing TrafficSense services.
 """
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from app.models.schemas import RouteRequest
 from app.services.traffic import TrafficService
@@ -225,14 +225,16 @@ LANDMARKS = {
 }
 
 
-def _resolve_location(name: str) -> tuple[float, float]:
-    """Resolve a location name to (lat, lng) using landmarks."""
+def _resolve_location(name: str) -> Optional[tuple[float, float]]:
+    """Resolve a location name to (lat, lng) using landmarks, or None if unknown."""
     name_lower = name.lower().strip()
+    # Names under 3 chars (e.g. "", "a") would substring-match almost every landmark.
+    if len(name_lower) < 3:
+        return None
     for key, coords in LANDMARKS.items():
-        if key in name_lower or name_lower in key:
+        if name_lower == key or key in name_lower or name_lower in key:
             return coords
-    # Default to Bangalore center
-    return (12.9716, 77.5946)
+    return None
 
 
 # ── Tool execution ─────────────────────────────────────────────────────────
@@ -280,7 +282,7 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, list[
 
     except Exception as e:
         logger.error("Tool execution error for %s: %s", tool_name, e, exc_info=True)
-        return f"Error executing {tool_name}: {str(e)}", actions
+        return f"Error executing {tool_name}. Please try again later.", actions
 
 
 # ── Individual tool implementations ────────────────────────────────────────
@@ -408,6 +410,14 @@ def _exec_find_route(
 
     origin_coords = _resolve_location(origin_name)
     dest_coords = _resolve_location(dest_name)
+    unknown = [n for n, c in ((origin_name, origin_coords), (dest_name, dest_coords)) if c is None]
+    if unknown:
+        names = ", ".join(f"'{str(n)[:50]}'" for n in unknown)
+        return (
+            f"Could not find {names}. Please name a known Bangalore landmark, "
+            "for example Koramangala, MG Road, Whitefield, Electronic City, "
+            "Hebbal, Indiranagar or the Airport."
+        ), actions
 
     req = RouteRequest(
         origin_lat=origin_coords[0],
