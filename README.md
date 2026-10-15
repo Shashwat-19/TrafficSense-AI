@@ -573,7 +573,7 @@ docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:lat
 | Variable | Set where | Purpose |
 |---|---|---|
 | `NEXT_PUBLIC_TOMTOM_API_KEY` | Host environment (read by `docker-compose.yml` as a frontend build arg) | Embedded in the frontend bundle at build time, so it is public. Rebuild after changing it. Restrict the key by domain in the TomTom dashboard. |
-| `NEXT_PUBLIC_API_URL` | Build arg (default `http://localhost:8000`) | Backend URL the browser calls. |
+| `NEXT_PUBLIC_API_URL` | Build arg (default `http://localhost:8000`) | Backend URL the browser calls. If unset, the browser uses relative `/api/v1` paths, which Next proxies to `BACKEND_URL` (default `http://localhost:8000`, fixed at build time). |
 | `APP_ENV` | Set to `production` in the Dockerfiles and `docker-compose.yml` | `production` disables `/docs` and `/redoc` and forces `DEBUG` off. |
 | `DEBUG` | Image default `false` | Ignored while `APP_ENV=production`. |
 | `CORS_ORIGINS` | Runtime (`backend/.env` or `-e`) | Comma-separated allowed origins. |

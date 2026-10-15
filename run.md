@@ -251,5 +251,5 @@ If a process is already running on port 8000 or 3000:
 
 ### 3. Frontend fails to fetch backend data
 - Ensure backend is running at `http://localhost:8000`.
-- Verify `frontend/.env.local` contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+- If `NEXT_PUBLIC_API_URL` is unset, the frontend proxies `/api/v1` to `BACKEND_URL` (default `http://localhost:8000`); restart `npm run dev` (or rebuild) after changing either variable.
 - Test backend health directly: `curl http://localhost:8000/api/v1/health`.
