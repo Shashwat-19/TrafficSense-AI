@@ -1,32 +1,30 @@
 # To-do
 
-Work still to do. Details are in `reviews.md`.
+Only the work that is left for you. Details are in `reviews.md`.
 
-## Needs you
+## Before merging
 
-- [ ] Add `OPENWEATHER_API_KEY` and the AWS keys to `backend/.env` if you want live weather and the chatbot.
-- [ ] Restrict the browser TomTom key by domain in the TomTom dashboard.
-- [ ] Decide how the API should be authenticated (every endpoint, including chat and preferences, is open).
-- [ ] Decide whether to keep the 30-second Bedrock read timeout, which is shorter than boto3's default.
-- [ ] Decide whether to move from Node 20 (past end of life) to Node 22 LTS.
+- [ ] Commit and push the last small change (shared time-of-day table in `traffic.py` and `prediction.py`). It is in your working folder but not on GitHub yet.
+- [ ] Run `docker compose up --build` and confirm both containers start and healthy. None of the Docker changes (root `Dockerfile`, `frontend/Dockerfile`, `backend/Dockerfile`, `docker-compose.yml`) have been built.
+- [ ] Run a root `docker build -t trafficsense .` and check the unified image starts (`docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense`).
+- [ ] Open the pull request for `fix/code-review-fixes` and merge it into `main`.
 
-## Verify
+## Keys
 
-- [ ] Run `docker compose up --build` and a root `docker build` to confirm the new Node copy, non-root users and `next start` work. None of the Docker changes have been built, and neither has `docker-compose.override.yml.example`.
-- [ ] Test the live OpenWeather path once the key is set (it is only tested with mocked responses).
-- [ ] Test the AWS Bedrock chatbot once the AWS keys are set.
+- [ ] Add `OPENWEATHER_API_KEY` to `backend/.env` for live weather, then check `/api/v1/weather` shows live data.
+- [ ] Add `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` and `BEDROCK_MODEL_ID` to `backend/.env` for the chatbot, then test a chat message.
+- [ ] Create `frontend/.env.local` (copy `frontend/.env.local.example`) and set `NEXT_PUBLIC_TOMTOM_API_KEY` for map tiles. Also set `NEXT_PUBLIC_API_URL=http://localhost:8000` for local development.
+- [ ] In the TomTom dashboard, restrict the browser map key to your site's domains. Use a separate key for the browser and the backend.
+- [ ] Set `NEXT_PUBLIC_TOMTOM_API_KEY` as a build variable wherever you deploy the frontend (Vercel project settings).
+- [ ] Set `APP_ENV=production` and the backend keys as environment variables in your deployment.
 
-## Security and dependencies
+## Decisions
 
-- [ ] 9 high-severity advisories remain in dev-only tools (the shadcn CLI and eslint's plugin chain, through `braces`, `micromatch` and `fast-glob`). No patched release exists yet, so re-run `npm audit` later.
-- [ ] Decide whether to keep the retrained `xgb_speed_model.pkl` in git and loaded by pickle, or load it from a safer format or a trusted release.
+- [ ] Choose how to authenticate the API. Right now every endpoint is open, including chat (which costs money through AWS) and preferences.
+- [ ] Decide whether to keep the 30-second chat timeout or raise it (`CHATBOT_REQUEST_TIMEOUT` in `backend/app/core/config.py`).
+- [ ] Decide whether to move from Node 20 (past end of life) to Node 22 LTS in the Dockerfiles and the docs.
+- [ ] Decide whether to keep the trained model file `xgb_speed_model.pkl` in git, or publish it as a release asset instead.
 
-## Backend
+## Later
 
-- [ ] Share the time-of-day table between `prediction.py` and `traffic.py` instead of keeping two copies.
-- [ ] Tighten cached prediction freshness by recording when the traffic data was fetched (a cached prediction can use traffic data up to one cache window old).
-- [ ] Make the partial-result warning work for callers that split fetching and reading across threads, if any are added.
-
-## Cleanup
-
-- [ ] Keep `DEBUG` or remove it: only config and the tests read it now.
+- [ ] Re-run `npm audit` in `frontend/` in a few weeks. 9 high-severity advisories remain in dev-only tools and no patched release exists yet.

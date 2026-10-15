@@ -8,7 +8,7 @@ predict traffic conditions at 15 / 30 / 60 minute horizons.
 import logging
 import os
 import random
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 from typing import List, Tuple
 
 import pandas as pd
@@ -23,6 +23,8 @@ from app.services.traffic import (
     cache_get,
     cache_set,
     calculate_congestion,
+    IST,
+    expected_time_factor as _expected_time_factor,
     get_congestion_level,
 )
 from app.services.weather import WeatherService
@@ -60,19 +62,6 @@ def _load_model():
             except Exception:
                 logger.exception("Failed to load model %s; using heuristic", _MODEL_PATH)
     return _MODEL if _MODEL is not False else None
-
-
-def _expected_time_factor(hour: int) -> float:
-    """Mean of traffic._time_factor for an hour (its random jitter averaged out)."""
-    if 8 <= hour <= 10:
-        return 0.925
-    if 17 <= hour <= 20:
-        return 0.90
-    if 12 <= hour <= 14:
-        return 0.525
-    if 22 <= hour or hour <= 5:
-        return 0.10
-    return 0.40
 
 
 def _modelled_speed(ffs: float, hour: int, dow: int) -> float:
@@ -128,10 +117,10 @@ class PredictionService:
 
         # Same source as /traffic/current, so current_speed agrees with it.
         traffic, traffic_mode = _traffic_service.get_current_traffic()
-        live_speeds = {t["id"]: t["current_speed"] for t in traffic}
+        live = {t["id"]: t for t in traffic}
         use_live_lag = traffic_mode == "live"
 
-        now = datetime.now(tz=timezone.utc) + timedelta(hours=5)  # IST, approx UTC+5
+        now = datetime.now(tz=IST)
         target = now + timedelta(minutes=horizon)
         target_hour, target_dow = target.hour, target.weekday()
         # Previous hour of the target, the lag the model was trained with.
@@ -142,23 +131,33 @@ class PredictionService:
 
         for seg in segments:
             ffs = seg["ffs"]
-            current_speed = live_speeds.get(seg["id"])
-            if current_speed is None:
+            speed_scale = 1.0
+            if seg["id"] in live:
+                current_speed = live[seg["id"]]["current_speed"]
+                # Live free-flow speed differs from seg["ffs"], so reuse traffic's own ratio to stay consistent with it.
+                current_congestion = live[seg["id"]]["congestion_ratio"]
+                if live[seg["id"]]["free_flow_speed"] > 0:
+                    speed_scale = live[seg["id"]]["free_flow_speed"] / ffs
+            else:
                 current_speed = _modelled_speed(ffs, now.hour, now.weekday())
+                current_congestion = calculate_congestion(current_speed, ffs)
 
             if use_live_lag:
-                lag_speed = current_speed
+                # The model works in static-ffs terms, so express the live congestion on that scale.
+                lag_speed = ffs * (1 - current_congestion)
             else:
                 lag_speed = _modelled_speed(ffs, prev_hour, prev_dow)
 
             if model is not None:
                 pred = self._ml_predict(
                     model, seg, target_hour, target_dow, horizon, lag_speed, current_speed,
-                    temperature, is_rainy,
+                    current_congestion, speed_scale, temperature, is_rainy,
                 )
                 mode = "ml_prediction"
             else:
-                pred = self._heuristic_predict(seg, target_hour, target_dow, horizon, current_speed)
+                pred = self._heuristic_predict(
+                    seg, target_hour, target_dow, horizon, current_speed, current_congestion, speed_scale
+                )
                 mode = "heuristic"
 
             predictions.append(pred)
@@ -169,7 +168,8 @@ class PredictionService:
 
     def _ml_predict(
         self, model, seg: dict, hour: int, dow: int, horizon: int,
-        lag_speed: float, current_speed: float, temperature: float, is_rainy: int,
+        lag_speed: float, current_speed: float, current_congestion: float,
+        speed_scale: float, temperature: float, is_rainy: int,
     ) -> TrafficPrediction:
         ffs = seg["ffs"]
         lag_speed = max(2.0, min(ffs, lag_speed))  # same clip as training
@@ -201,16 +201,17 @@ class PredictionService:
             segment_id=seg["id"],
             road_name=seg["road_name"],
             horizon_minutes=horizon,
-            predicted_speed=round(pred_speed, 1),
+            predicted_speed=round(pred_speed * speed_scale, 1),
             predicted_congestion=round(congestion, 3),
             predicted_level=level,
             confidence=round(conf, 2),
             current_speed=round(max(2.0, current_speed), 1),
-            current_congestion=round(calculate_congestion(current_speed, ffs), 3),
+            current_congestion=round(current_congestion, 3),
         )
 
     def _heuristic_predict(
-        self, seg: dict, hour: int, dow: int, horizon: int, current_speed: float
+        self, seg: dict, hour: int, dow: int, horizon: int, current_speed: float,
+        current_congestion: float, speed_scale: float,
     ) -> TrafficPrediction:
         """Simple heuristic when no ML model is available."""
         ffs = seg["ffs"]
@@ -227,10 +228,10 @@ class PredictionService:
             segment_id=seg["id"],
             road_name=seg["road_name"],
             horizon_minutes=horizon,
-            predicted_speed=pred_speed,
+            predicted_speed=round(pred_speed * speed_scale, 1),
             predicted_congestion=round(congestion, 3),
             predicted_level=level,
             confidence=round(conf, 2),
             current_speed=round(max(2.0, current_speed), 1),
-            current_congestion=round(calculate_congestion(current_speed, ffs), 3),
+            current_congestion=round(current_congestion, 3),
         )
