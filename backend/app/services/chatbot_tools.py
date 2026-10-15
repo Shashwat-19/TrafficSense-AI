@@ -6,6 +6,7 @@ each backed by existing TrafficSense services.
 """
 
 import logging
+import re
 from typing import Any, Optional
 
 from app.models.schemas import RouteRequest
@@ -231,10 +232,15 @@ def _resolve_location(name: str) -> Optional[tuple[float, float]]:
     # Names under 3 chars (e.g. "", "a") would substring-match almost every landmark.
     if len(name_lower) < 3:
         return None
-    for key, coords in LANDMARKS.items():
-        if name_lower == key or key in name_lower or name_lower in key:
-            return coords
-    return None
+    if name_lower in LANDMARKS:
+        return LANDMARKS[name_lower]
+    # "MG Road, Bangalore" names several landmarks; the dict lists the city names last, so the place wins.
+    named = [k for k in LANDMARKS if re.search(rf"\b{re.escape(k)}\b", name_lower)]
+    if named:
+        return LANDMARKS[named[0]]
+    # A fragment such as "road" fits several landmarks: only accept it when it fits one place.
+    fragments = {c for k, c in LANDMARKS.items() if name_lower in k}
+    return fragments.pop() if len(fragments) == 1 else None
 
 
 # ── Tool execution ─────────────────────────────────────────────────────────
