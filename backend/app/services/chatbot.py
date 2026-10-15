@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import uuid
+import weakref
 from datetime import datetime, timezone
 from typing import Any
 
@@ -126,7 +127,12 @@ def _create_bedrock_client():
     """Create a boto3 Bedrock Runtime client."""
     kwargs: dict[str, Any] = {
         "region_name": settings.AWS_REGION,
-        "config": Config(read_timeout=settings.CHATBOT_REQUEST_TIMEOUT),
+        # Bound connect and retries too; the overall deadline in chat() covers the whole tool loop.
+        "config": Config(
+            connect_timeout=min(5, settings.CHATBOT_REQUEST_TIMEOUT),
+            read_timeout=settings.CHATBOT_REQUEST_TIMEOUT,
+            retries={"mode": "standard", "total_max_attempts": 2},
+        ),
     }
     if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
         kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
@@ -144,6 +150,8 @@ class ChatbotService:
             max_messages=settings.CHATBOT_MAX_HISTORY
         )
         self._client = None
+        # One lock per conversation; weak values so idle conversations don't pile up.
+        self._locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
 
     @property
     def client(self):
@@ -168,11 +176,15 @@ class ChatbotService:
         -------
         dict with keys: response, conversation_id, sources, tools_used, actions, timestamp
         """
-        request_start = datetime.now(tz=timezone.utc)
-
-        # Generate or reuse conversation ID
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
+
+        # Turns of one conversation run one at a time; different conversations stay concurrent.
+        async with self._locks.setdefault(conversation_id, asyncio.Lock()):
+            return await self._chat_turn(message, conversation_id)
+
+    async def _chat_turn(self, message: str, conversation_id: str) -> dict:
+        request_start = datetime.now(tz=timezone.utc)
 
         # Snapshot so a cancelled request can be rolled back (no dangling user turn)
         history_before = list(self._store.get_messages(conversation_id))
@@ -188,17 +200,21 @@ class ChatbotService:
         sources: list[str] = []
 
         try:
-            response_text = await self._converse_with_tools(
-                messages=messages,
-                conversation_id=conversation_id,
-                tools_used=tools_used,
-                actions=all_actions,
-                sources=sources,
-            )
+            async with asyncio.timeout(settings.CHATBOT_REQUEST_TIMEOUT):
+                response_text = await self._converse_with_tools(
+                    messages=messages,
+                    conversation_id=conversation_id,
+                    tools_used=tools_used,
+                    actions=all_actions,
+                    sources=sources,
+                )
         except asyncio.CancelledError:
             # Bedrock rejects consecutive user turns, so drop this half-finished turn.
             self._store.restore(conversation_id, history_before)
             raise
+        except TimeoutError:
+            logger.error("Chat request exceeded %ss", settings.CHATBOT_REQUEST_TIMEOUT)
+            response_text = "⚠️ The AI service took too long to respond. Please try again."
         except NoCredentialsError:
             logger.error("AWS credentials not configured")
             response_text = (
