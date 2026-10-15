@@ -1,48 +1,37 @@
 # To-do
 
-Work still to do after this round of fixes. Details are in `reviews.md`.
+Work still to do. Details are in `reviews.md`.
 
 ## Needs you
 
+- [ ] Add `OPENWEATHER_API_KEY` and the AWS keys to `backend/.env` if you want live weather and the chatbot.
 - [ ] Restrict the browser TomTom key by domain in the TomTom dashboard.
-- [ ] Add `OPENWEATHER_API_KEY` and the AWS keys to `backend/.env` if you want weather and the chatbot live.
-- [ ] Decide how the API should be authenticated (chat and preferences endpoints are open).
-- [ ] Set `APP_ENV=production` in the Dockerfiles and compose files, so the docs pages and debug mode switch off in deployments.
+- [ ] Decide how the API should be authenticated (chat, preferences and all other endpoints are open).
 - [ ] Decide whether to keep the 30-second Bedrock read timeout, which is shorter than boto3's default.
+- [ ] Decide whether to move from Node 20 (past end of life) to Node 22 LTS.
 
-## Security and deployment
+## Verify
 
-- [ ] Pass `NEXT_PUBLIC_TOMTOM_API_KEY` through `docker-compose.yml` as a build arg.
-- [ ] Verify the non-root containers can write where they need to (bind-mounted `./backend` in compose).
-- [ ] Pin base image versions and remove the unpinned NodeSource `curl | bash` step.
-- [ ] Stop the chat `/openapi.json` endpoint being served in production.
-- [ ] Remove the `README.md` quickstart step that overwrites `backend/.env` with `cp`, and the architecture table's "static shell" wording.
+- [ ] Run a Docker build of the root image and `docker compose up --build` to confirm the new Node copy, non-root users and `next start` all work. None of the Docker changes have been built.
+- [ ] Check that the chatbot's prediction tool handles the new unknown-segment error with a sensible message (`chatbot_tools.py`).
+- [ ] Check that the frontend handles alerts now being built from live data (fewer alerts, new IDs).
 
-## Frontend
+## Security and dependencies
 
-- [ ] Remove the `cn` package: point `frontend/src/lib/utils.ts` at `clsx` and `tailwind-merge`, switch the 14 files that import `cn` from it, then regenerate `package-lock.json` with `npm install`.
-- [ ] Run `npm install`, then `npx tsc --noEmit` and `npm run lint` to type-check the frontend changes, which have not been verified yet.
-- [ ] Make server-side fetches use an absolute URL, since the client now defaults to relative paths.
-- [ ] Remove the hardcoded "Baseline 45 km/h" and invented segment counts on the analytics page.
-- [ ] Replace "port 8000" in error text with the real API URL.
+- [ ] Review the `npm audit` results (12 vulnerabilities reported: 11 high, 1 critical) and upgrade the affected packages.
+- [ ] Add length limits to the saved location and recent route text fields in the preferences model.
+- [ ] Decide whether to keep the retrained `xgb_speed_model.pkl` in git and loaded by pickle, or load it from a safer format or a trusted release.
 
 ## Backend
 
-- [ ] Make shared service caches thread-safe, since service calls now run on worker threads.
-- [ ] Show the missing-segment list in the traffic API response, not only in the log.
-- [ ] Stop caching the demo fallback for the full TTL, so recovery after a TomTom outage is faster.
-- [ ] Use live data for alerts, analytics and predictions, and report the real data mode.
-- [ ] Stop predictions returning the first segment for an unknown segment ID.
-- [ ] Stop unresolved place names routing from city centre without an error.
-- [ ] Implement the OpenWeather live path or label weather as demo everywhere.
-- [ ] Use IST (+5:30) for hour-of-day calculations.
-- [ ] Remove the unreachable early return in `traffic.py` and the unused `PREDICTION_CACHE_TTL`, or wire them up.
-- [ ] Retrain the speed model with lag features from the previous hour, and use the validation split with early stopping.
-- [ ] Load the model with a safer format than pickle, or verify its source.
-- [ ] Stop returning raw exception text from chatbot tools to the model.
+- [ ] Show the missing-segment list in the traffic API response, not only in the log (needs the endpoint's return shape to change).
+- [ ] Cache partial live traffic results briefly, so persistently failing segments don't cost 25 calls per request.
+- [ ] Decide whether to cache predictions, and align `PREDICTION_CACHE_TTL` with the traffic cache so current speeds stay consistent, or remove the setting.
+- [ ] Feed real weather into predictions (temperature and rain are fixed placeholders now).
+- [ ] Share the time-of-day table between `prediction.py` and `traffic.py` instead of keeping two copies.
+- [ ] Remove the config variables nothing reads (`DEFAULT_RADIUS_KM`, `API_MAX_RETRIES`, `CHATBOT_REQUEST_TIMEOUT` may now be partly used; re-check).
 
 ## Cleanup
 
-- [ ] Share one map tile configuration across the three frontend components.
-- [ ] Use stable incident IDs from the TomTom payload.
-- [ ] Pin the Python version in the Docker image to match the local venv (3.14 vs 3.11).
+- [ ] Add a `docker-compose.override.yml` example file for local development (currently only documented in the README).
+- [ ] Stop the build log writing to `~/.claude/build.log` outside the repo, if that comes from a project script.

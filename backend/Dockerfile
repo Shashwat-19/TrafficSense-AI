@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.14-slim-bookworm
 
 WORKDIR /app
 
@@ -13,7 +13,8 @@ RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --create-home app
 COPY --chown=app:app . .
 
 ENV PYTHONUNBUFFERED=1 \
-    APP_ENV=production
+    APP_ENV=production \
+    DEBUG=false
 
 USER app
 

@@ -193,7 +193,7 @@ sequenceDiagram
 
 | Tier | Component | Primary Responsibility | SLA / Latency |
 |---|---|---|---|
-| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Pre-rendered static shell (`< 50ms` FCP) |
+| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Server-rendered Next.js app (`next start`, not a static export) |
 | **2. Gateway** | FastAPI + Starlette + Middleware | Route dispatch, strict Pydantic v2 validation, CORS authorization, structured JSON access logging, and in-memory TTL caching. | `< 5ms` overhead |
 | **3. Domain Services** | Python 3.11 Microservices | Core business logic for traffic corridor normalization, route delay penalties, incident tracking, and Bedrock tool dispatching. | `< 15ms` execution |
 | **4. AI / ML** | XGBoost Regressor + AWS Bedrock | 9-feature spatio-temporal speed forecasts (15/30/60m) and multi-turn conversational AI reasoning via Amazon Nova Lite. | ML: `< 20ms` • Bedrock: `~600–1200ms` |
@@ -352,8 +352,11 @@ cd TrafficSense-AI
 
 ### 2. Run with Docker Compose (Recommended)
 ```bash
-# Copy backend environment configuration
-cp backend/.env.example backend/.env
+# Copy backend environment configuration (only if it does not exist yet)
+[ -f backend/.env ] || cp backend/.env.example backend/.env
+
+# Optional: bake the TomTom key into the frontend build (host environment variable)
+export NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key
 
 # Build and start services
 docker-compose up --build
@@ -564,6 +567,32 @@ docker build --build-arg NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key -t trafficse
 docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:latest
 ```
 `NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles.
+
+### Docker environment variables
+
+| Variable | Set where | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_TOMTOM_API_KEY` | Host environment (read by `docker-compose.yml` as a frontend build arg) | Embedded in the frontend bundle at build time, so it is public. Rebuild after changing it. Restrict the key by domain in the TomTom dashboard. |
+| `NEXT_PUBLIC_API_URL` | Build arg (default `http://localhost:8000`) | Backend URL the browser calls. |
+| `APP_ENV` | Set to `production` in the Dockerfiles and `docker-compose.yml` | `production` disables `/docs` and `/redoc` and forces `DEBUG` off. |
+| `DEBUG` | Image default `false` | Ignored while `APP_ENV=production`. |
+| `CORS_ORIGINS` | Runtime (`backend/.env` or `-e`) | Comma-separated allowed origins. |
+| `BACKEND_HEALTH_URL`, `BACKEND_WAIT_TIMEOUT` | Runtime, unified container only | Health URL and seconds that `docker-entrypoint.sh` waits for the backend. |
+
+### Docker development override
+
+`docker-compose.yml` does not bind-mount the source tree. The backend runs the code baked into the image as the non-root `app` user (uid 10001), so a host bind mount is not used by default: host files owned by another uid cannot be written by that user and the mount hides the image's `/app` contents. For live-reload development, create a `docker-compose.override.yml` next to `docker-compose.yml` (keep it uncommitted):
+
+```yaml
+services:
+  backend:
+    environment:
+      - APP_ENV=development
+    volumes:
+      - ./backend:/app
+```
+
+Compose loads this file automatically with `docker-compose up`. Remove it for production-style runs.
 
 ---
 
