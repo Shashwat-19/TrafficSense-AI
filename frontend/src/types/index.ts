@@ -175,6 +175,7 @@ export interface AppResponse<T = unknown> {
   data_mode: "live" | "demo";
   last_updated: string;
   source: string;
+  warnings?: string[];
 }
 
 // ── Chat ───────────────────────────────────────────────────────────────────

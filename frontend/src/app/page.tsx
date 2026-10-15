@@ -111,6 +111,9 @@ export default function DashboardPage() {
   const predictions = (predictionsRes?.data ?? []) as TrafficPrediction[];
 
   const dataMode = analyticsRes?.data_mode || trafficRes?.data_mode || 'demo';
+  const warnings = [...new Set(
+    [analyticsRes, trafficRes, incidentsRes, weatherRes, alertsRes, predictionsRes].flatMap(r => r?.warnings ?? [])
+  )];
 
   const handleRefreshAll = () => {
     refetchAnalytics();
@@ -152,6 +155,13 @@ export default function DashboardPage() {
         </div>
       }
     >
+      {warnings.length > 0 && (
+        <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div>{warnings.map(w => <p key={w}>{w}</p>)}</div>
+        </div>
+      )}
+
       {/* 4 Top KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Overall Congestion */}
