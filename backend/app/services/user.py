@@ -5,6 +5,7 @@ In-memory user preferences, saved locations, and recent routes for
 development mode. Ready for Cognito / DynamoDB integration.
 """
 
+import threading
 from datetime import datetime
 from typing import Tuple
 
@@ -73,6 +74,7 @@ _default_preferences = UserPreferences(
 )
 
 _user_prefs: UserPreferences = _default_preferences.model_copy()
+_prefs_lock = threading.Lock()  # updates run in worker threads (asyncio.to_thread)
 
 
 class UserService:
@@ -83,8 +85,9 @@ class UserService:
 
     def update_preferences(self, prefs: UserPreferencesUpdate) -> Tuple[dict, str]:
         global _user_prefs
-        current = _user_prefs.model_dump()
-        # Only fields the caller actually sent; explicit nulls are ignored.
-        current.update(prefs.model_dump(exclude_unset=True, exclude_none=True))
-        _user_prefs = UserPreferences(**current)
-        return _user_prefs.model_dump(mode="json"), "demo"
+        with _prefs_lock:
+            current = _user_prefs.model_dump()
+            # Only fields the caller actually sent; explicit nulls are ignored.
+            current.update(prefs.model_dump(exclude_unset=True, exclude_none=True))
+            _user_prefs = UserPreferences(**current)
+            return _user_prefs.model_dump(mode="json"), "demo"

@@ -106,6 +106,13 @@ class ConversationStore:
         )
         self._conversations[conversation_id] = messages[start:]
 
+    def restore(self, conversation_id: str, messages: list[dict]) -> None:
+        """Roll a conversation back to an earlier snapshot (an empty one removes it)."""
+        if messages:
+            self._conversations[conversation_id] = messages
+        else:
+            self._conversations.pop(conversation_id, None)
+
     def clear(self, conversation_id: str) -> None:
         self._conversations.pop(conversation_id, None)
 
@@ -167,6 +174,9 @@ class ChatbotService:
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
 
+        # Snapshot so a cancelled request can be rolled back (no dangling user turn)
+        history_before = list(self._store.get_messages(conversation_id))
+
         # Add user message to history
         self._store.add_message(conversation_id, "user", message)
 
@@ -185,6 +195,10 @@ class ChatbotService:
                 actions=all_actions,
                 sources=sources,
             )
+        except asyncio.CancelledError:
+            # Bedrock rejects consecutive user turns, so drop this half-finished turn.
+            self._store.restore(conversation_id, history_before)
+            raise
         except NoCredentialsError:
             logger.error("AWS credentials not configured")
             response_text = (
