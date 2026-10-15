@@ -11,7 +11,7 @@ Ensure you have the following installed on your system:
 | Tool | Minimum Version | Check Command |
 |---|---|---|
 | **Python** | 3.11+ | `python3 --version` |
-| **Node.js** | 18.18+ (20+ recommended) | `node -v` |
+| **Node.js** | 20.9+ (required by Next.js 16) | `node -v` |
 | **npm** | 9+ | `npm -v` |
 | **Docker** *(optional)* | 20+ | `docker --version` |
 | **AWS Account** *(for AI Chatbot)* | Bedrock access enabled | (Amazon Nova Lite `amazon.nova-lite-v1:0` in `us-east-1`) |
@@ -150,14 +150,14 @@ curl -X POST http://localhost:8000/api/v1/chat \
 
 To launch both the backend and frontend simultaneously inside Docker containers:
 
-1. **From the project root directory:**
+1. **From the project root directory (the folder that contains `docker-compose.yml`):**
    ```bash
-   cd /Users/shashwat./Desktop/project-class
+   cd path/to/TrafficSense-AI
    ```
 
 2. **Ensure backend `.env` is configured:**
    ```bash
-   cp backend/.env.example backend/.env
+   [ -f backend/.env ] || cp backend/.env.example backend/.env
    # Add your AWS credentials and optional API keys in backend/.env
    ```
 
@@ -187,10 +187,11 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-### 2. Frontend Production Build & Lint
-Ensures all static routes, TypeScript types, and UI components compile with zero errors:
+### 2. Frontend Lint & Production Build
+Ensures TypeScript types and UI components pass ESLint and compile with zero errors:
 ```bash
 cd frontend
+npm run lint
 npm run build
 ```
 

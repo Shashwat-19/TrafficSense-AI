@@ -383,7 +383,7 @@ curl http://localhost:8000/api/v1/health
 ```
 
 #### Frontend Setup
-In a new terminal window:
+Requires Node.js 20.9+ (Next.js 16). In a new terminal window:
 ```bash
 cd frontend
 npm install
@@ -488,7 +488,7 @@ All responses conform to a unified standard envelope:
 | `GET` | `/api/v1/traffic/incidents` | Active traffic incidents & hazards | Query: `severity`, `incident_type` |
 | `GET` | `/api/v1/weather` | Current Bangalore weather metrics | None |
 | `GET` | `/api/v1/predictions` | Multi-horizon ML speed forecasts | Query: `horizon` (15/30/60), `segment_id` |
-| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (origin, destination, avoid_congestion) |
+| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (`origin_lat`, `origin_lng`, `destination_lat`, `destination_lng`, optional `departure_time`, `avoid_congestion`, `avoid_incidents`) |
 | `GET` | `/api/v1/analytics` | Aggregated citywide statistics | None |
 | `GET` | `/api/v1/alerts` | Urgent alerts & notifications | Query: `alert_type`, `severity` |
 | `GET` | `/api/v1/users/preferences` | Retrieve user preferences & saved hubs | None |
@@ -544,7 +544,7 @@ The frontend code adheres strictly to TypeScript and ESLint standards with zero 
 ```bash
 cd frontend
 npm run lint       # Result: 0 errors, 0 warnings
-npm run build      # Result: All 12 routes static and prerendered cleanly
+npm run build      # Result: All 9 app pages (src/app/**/page.tsx) build cleanly
 ```
 
 ---
@@ -558,11 +558,12 @@ docker-compose up --build -d
 ```
 
 ### Option 2: Unified Production Container (`Dockerfile`)
-Packages both the FastAPI backend and Next.js static output into a single lightweight production image supervised by `docker-entrypoint.sh`:
+Packages the FastAPI backend and the Next.js production server (`next start`, not a static export) into a single image. `docker-entrypoint.sh` starts the backend, waits for its health endpoint, then starts the frontend. The containers run as a non-root user.
 ```bash
-docker build -t trafficsense-ai:latest .
+docker build --build-arg NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key -t trafficsense-ai:latest .
 docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:latest
 ```
+`NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles.
 
 ---
 

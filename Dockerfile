@@ -8,6 +8,8 @@ RUN npm ci
 COPY frontend/ ./
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# ARG only (no ENV) so the key is available to the build but not stored in image config
+ARG NEXT_PUBLIC_TOMTOM_API_KEY=
 
 RUN npm run build && npm prune --production
 
@@ -37,12 +39,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Non-root runtime user (home dir needed by npm)
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --create-home app
+
 # Copy Python packages & backend code
 COPY --from=backend-builder /install /usr/local
-COPY backend/ /app/backend/
+COPY --chown=app:app backend/ /app/backend/
 
 # Copy built frontend assets and pruned production dependencies
-COPY --from=frontend-builder /app/frontend/.next /app/frontend/.next
+COPY --chown=app:app --from=frontend-builder /app/frontend/.next /app/frontend/.next
 COPY --from=frontend-builder /app/frontend/node_modules /app/frontend/node_modules
 COPY --from=frontend-builder /app/frontend/package.json /app/frontend/package.json
 COPY --from=frontend-builder /app/frontend/public /app/frontend/public
@@ -56,6 +61,8 @@ EXPOSE 8000 3000
 ENV APP_ENV=production
 ENV PYTHONUNBUFFERED=1
 ENV CORS_ORIGINS=http://localhost:3000,http://localhost:8000
+
+USER app
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
   CMD curl -f http://localhost:8000/api/v1/health || exit 1

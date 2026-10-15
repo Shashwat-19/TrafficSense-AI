@@ -8,6 +8,10 @@
 .env.*
 *.env
 aws.md
+**/.env
+**/.env.*
+**/*.env
+**/aws.md
 *.credentials
 
 # Node / Frontend

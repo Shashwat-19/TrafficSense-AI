@@ -9,10 +9,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+RUN groupadd --gid 10001 app && useradd --uid 10001 --gid app --create-home app
+COPY --chown=app:app . .
 
 ENV PYTHONUNBUFFERED=1 \
     APP_ENV=production
+
+USER app
 
 EXPOSE 8000
 

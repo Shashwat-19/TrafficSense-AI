@@ -1,12 +1,13 @@
 venv/
 .venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+**/__pycache__/
+**/*.py[cod]
 .pytest_cache/
 .env
 .env.*
+aws.md
+**/aws.md
 *.credentials
+**/*.credentials
 .DS_Store
 *.log
