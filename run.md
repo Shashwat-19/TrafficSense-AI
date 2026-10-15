@@ -11,7 +11,7 @@ Ensure you have the following installed on your system:
 | Tool | Minimum Version | Check Command |
 |---|---|---|
 | **Python** | 3.11+ | `python3 --version` |
-| **Node.js** | 18.18+ (20+ recommended) | `node -v` |
+| **Node.js** | 20.9+ (required by Next.js 16) | `node -v` |
 | **npm** | 9+ | `npm -v` |
 | **Docker** *(optional)* | 20+ | `docker --version` |
 | **AWS Account** *(for AI Chatbot)* | Bedrock access enabled | (Amazon Nova Lite `amazon.nova-lite-v1:0` in `us-east-1`) |
@@ -87,8 +87,9 @@ Running both services in two separate terminals enables full hot-reloading for r
 
 7. **Verify the backend:**
    - **Health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
-   - **Interactive API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **ReDoc documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+   - **Interactive API Docs (Swagger, development only):** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **ReDoc documentation (development only):** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+   - `/docs` and `/redoc` return 404 when `APP_ENV=production`.
 
 ---
 
@@ -150,14 +151,14 @@ curl -X POST http://localhost:8000/api/v1/chat \
 
 To launch both the backend and frontend simultaneously inside Docker containers:
 
-1. **From the project root directory:**
+1. **From the project root directory (the folder that contains `docker-compose.yml`):**
    ```bash
-   cd /Users/shashwat./Desktop/project-class
+   cd path/to/TrafficSense-AI
    ```
 
 2. **Ensure backend `.env` is configured:**
    ```bash
-   cp backend/.env.example backend/.env
+   [ -f backend/.env ] || cp backend/.env.example backend/.env
    # Add your AWS credentials and optional API keys in backend/.env
    ```
 
@@ -168,7 +169,7 @@ To launch both the backend and frontend simultaneously inside Docker containers:
 
 4. **Access the application:**
    - **Frontend App:** [http://localhost:3000](http://localhost:3000)
-   - **Backend API & Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **Backend health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (Swagger `/docs` is off because compose sets `APP_ENV=production`; see the development override in the README to enable it)
 
 5. **Stop containers:**
    ```bash
@@ -187,10 +188,11 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-### 2. Frontend Production Build & Lint
-Ensures all static routes, TypeScript types, and UI components compile with zero errors:
+### 2. Frontend Lint & Production Build
+Ensures TypeScript types and UI components pass ESLint and compile with zero errors:
 ```bash
 cd frontend
+npm run lint
 npm run build
 ```
 
@@ -250,5 +252,5 @@ If a process is already running on port 8000 or 3000:
 
 ### 3. Frontend fails to fetch backend data
 - Ensure backend is running at `http://localhost:8000`.
-- Verify `frontend/.env.local` contains `NEXT_PUBLIC_API_URL=http://localhost:8000`.
+- If `NEXT_PUBLIC_API_URL` is unset, the frontend proxies `/api/v1` to `BACKEND_URL` (default `http://localhost:8000`); restart `npm run dev` (or rebuild) after changing either variable.
 - Test backend health directly: `curl http://localhost:8000/api/v1/health`.

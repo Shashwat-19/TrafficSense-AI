@@ -39,9 +39,10 @@ import { CONGESTION_COLORS, getCongestionLabel } from '@/lib/congestion';
 
 export default function DashboardPage() {
   // Query live/demo backend endpoints
-  const { 
-    data: analyticsRes, 
-    isLoading: loadingAnalytics, 
+  const {
+    data: analyticsRes,
+    isLoading: loadingAnalytics,
+    isError: errorAnalytics,
     refetch: refetchAnalytics,
     isRefetching: refetchingAnalytics 
   } = useQuery({
@@ -61,9 +62,10 @@ export default function DashboardPage() {
   });
 
   const { 
-    data: incidentsRes, 
-    isLoading: loadingIncidents, 
-    refetch: refetchIncidents 
+    data: incidentsRes,
+    isLoading: loadingIncidents,
+    isError: errorIncidents,
+    refetch: refetchIncidents
   } = useQuery({
     queryKey: ['incidents'],
     queryFn: () => getIncidents(),
@@ -71,9 +73,10 @@ export default function DashboardPage() {
   });
 
   const { 
-    data: weatherRes, 
-    isLoading: loadingWeather, 
-    refetch: refetchWeather 
+    data: weatherRes,
+    isLoading: loadingWeather,
+    isError: errorWeather,
+    refetch: refetchWeather
   } = useQuery({
     queryKey: ['weather'],
     queryFn: getWeather,
@@ -108,6 +111,9 @@ export default function DashboardPage() {
   const predictions = (predictionsRes?.data ?? []) as TrafficPrediction[];
 
   const dataMode = analyticsRes?.data_mode || trafficRes?.data_mode || 'demo';
+  const warnings = [...new Set(
+    [analyticsRes, trafficRes, incidentsRes, weatherRes, alertsRes, predictionsRes].flatMap(r => r?.warnings ?? [])
+  )];
 
   const handleRefreshAll = () => {
     refetchAnalytics();
@@ -122,6 +128,11 @@ export default function DashboardPage() {
   const congestionLevel = analytics?.overall_level || 'LOW';
   const colorInfo = CONGESTION_COLORS[congestionLevel] || CONGESTION_COLORS.LOW;
   const congestionPct = Math.round((analytics?.overall_congestion || 0) * 100);
+  // Real mean free-flow speed of the monitored segments (the old fixed 45 km/h was invented)
+  const avgFreeFlow = segments.length
+    ? segments.reduce((sum, s) => sum + s.free_flow_speed, 0) / segments.length
+    : null;
+  const avgSpeed = analytics?.avg_speed ?? 0;
   const criticalIncidentsCount = incidents.filter(i => i.severity === 'CRITICAL' || i.severity === 'HIGH').length;
 
   return (
@@ -144,51 +155,55 @@ export default function DashboardPage() {
         </div>
       }
     >
+      {warnings.length > 0 && (
+        <div role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-medium text-amber-700">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div>{warnings.map(w => <p key={w}>{w}</p>)}</div>
+        </div>
+      )}
+
       {/* 4 Top KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Overall Congestion */}
         <DashboardMetricCard
           title="Overall Congestion"
-          value={loadingAnalytics ? "--" : `${congestionPct}%`}
-          subtitle={`${analytics?.total_segments || 25} monitored corridors`}
+          value={loadingAnalytics ? "--" : errorAnalytics ? "N/A" : `${congestionPct}%`}
+          subtitle={errorAnalytics ? "Failed to load congestion data" : `${analytics?.total_segments || 25} monitored corridors`}
           icon={Activity}
           iconColor="text-blue-600 dark:text-blue-400"
-          badgeText={getCongestionLabel(congestionLevel)}
+          badgeText={errorAnalytics ? undefined : getCongestionLabel(congestionLevel)}
           badgeClassName={`${colorInfo.bg} ${colorInfo.text} ${colorInfo.border}`}
-          trend={{
-            value: congestionPct > 60 ? "+4.2%" : "-2.1%",
-            isGood: congestionPct <= 50,
-            label: "vs normal",
-          }}
         />
 
         {/* KPI 2: Active Incidents */}
         <DashboardMetricCard
           title="Active Incidents"
-          value={loadingIncidents ? "--" : incidents.length}
+          value={loadingIncidents ? "--" : errorIncidents ? "N/A" : incidents.length}
           subtitle={
-            criticalIncidentsCount > 0
+            errorIncidents
+              ? "Failed to load incidents"
+              : criticalIncidentsCount > 0
               ? `${criticalIncidentsCount} critical / major delay`
               : "No critical obstructions"
           }
           icon={AlertTriangle}
           iconColor={criticalIncidentsCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}
-          badgeText={criticalIncidentsCount > 0 ? "ATTENTION" : "MONITORED"}
+          badgeText={errorIncidents ? undefined : criticalIncidentsCount > 0 ? "ATTENTION" : "MONITORED"}
           badgeClassName={criticalIncidentsCount > 0 ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-slate-100 text-slate-700 border-slate-200"}
         />
 
         {/* KPI 3: Average Speed */}
         <DashboardMetricCard
           title="Average Speed"
-          value={loadingAnalytics ? "--" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
-          subtitle="Typical free-flow: 45 km/h"
+          value={loadingAnalytics ? "--" : errorAnalytics ? "N/A" : `${Math.round(analytics?.avg_speed || 0)} km/h`}
+          subtitle={errorAnalytics ? "Failed to load speed data" : avgFreeFlow ? `Free-flow average: ${Math.round(avgFreeFlow)} km/h` : "Citywide average"}
           icon={Car}
           iconColor="text-emerald-600 dark:text-emerald-400"
-          badgeText={`${Math.max(0, 45 - Math.round(analytics?.avg_speed || 0))} km/h drag`}
+          badgeText={errorAnalytics || !avgFreeFlow ? undefined : `${Math.max(0, Math.round(avgFreeFlow - avgSpeed))} km/h drag`}
           badgeClassName="bg-slate-100 text-slate-700 border-slate-200"
-          trend={{
-            value: `${Math.round((analytics?.avg_speed || 0) / 45 * 100)}%`,
-            isGood: (analytics?.avg_speed || 0) > 30,
+          trend={errorAnalytics || !avgFreeFlow ? undefined : {
+            value: `${Math.round((avgSpeed / avgFreeFlow) * 100)}%`,
+            isGood: avgSpeed / avgFreeFlow > 0.7,
             label: "capacity",
           }}
         />
@@ -196,11 +211,11 @@ export default function DashboardPage() {
         {/* KPI 4: Weather Conditions */}
         <DashboardMetricCard
           title="Weather Context"
-          value={loadingWeather ? "--" : `${Math.round(weather?.temperature || 26)}°C`}
-          subtitle={weather ? `${weather.condition} • ${weather.humidity}% humidity` : "Bangalore microclimate"}
+          value={loadingWeather ? "--" : errorWeather || weather?.temperature == null ? "N/A" : `${Math.round(weather.temperature)}°C`}
+          subtitle={errorWeather ? "Failed to load weather" : weather ? `${weather.condition} • ${weather.humidity}% humidity` : "Bangalore microclimate"}
           icon={Cloud}
           iconColor="text-sky-600 dark:text-sky-400"
-          badgeText={weather?.precipitation && weather.precipitation > 0 ? "WET ROADS" : "CLEAR"}
+          badgeText={errorWeather || weather?.temperature == null ? undefined : weather.precipitation && weather.precipitation > 0 ? "WET ROADS" : "CLEAR"}
           badgeClassName={weather?.precipitation && weather.precipitation > 0 ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
         />
       </div>

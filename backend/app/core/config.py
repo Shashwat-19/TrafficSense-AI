@@ -2,12 +2,20 @@
 TrafficSense AI — Application configuration.
 """
 
+import logging
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+# backend/.env resolved from this file, so the lookup works from any working directory
+_BACKEND_ENV = str(Path(__file__).resolve().parents[2] / ".env")
 
 
 class Settings(BaseSettings):
     model_config = {
-        "env_file": (".env", "backend/.env", "../backend/.env"),
+        "env_file": (".env", "backend/.env", "../backend/.env", _BACKEND_ENV),
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
@@ -19,21 +27,20 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     APP_NAME: str = "TrafficSense AI"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = True
-
+    DEBUG: bool = True  # dev-only: forced to False when APP_ENV=production
     # ── CORS ──────────────────────────────────────────────────────────────
-    # Accepts comma-separated origins string from .env
+    # Accepts comma-separated origins string from .env (localhost default is dev-only)
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
 
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of strings."""
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Browsers send origins without a trailing slash, so "https://app.example.com/" would never match
+        return [o.strip().rstrip("/") for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # ── Bangalore defaults ────────────────────────────────────────────────
-    DEFAULT_LAT: float = 12.9716
-    DEFAULT_LNG: float = 77.5946
-    DEFAULT_RADIUS_KM: float = 15.0
+    DEFAULT_LAT: float = 12.9716  # dev-only: Bangalore fallback coordinates for weather lookups
+    DEFAULT_LNG: float = 77.5946  # dev-only: Bangalore fallback coordinates for weather lookups
 
     # ── Congestion thresholds (configurable) ──────────────────────────────
     CONGESTION_LOW: float = 0.25
@@ -48,7 +55,6 @@ class Settings(BaseSettings):
 
     # ── External API timeouts ─────────────────────────────────────────────
     API_TIMEOUT_SECONDS: int = 10
-    API_MAX_RETRIES: int = 3
 
     # ── Chatbot / AWS Bedrock ─────────────────────────────────────────────
     AWS_REGION: str = "us-east-1"
@@ -72,40 +78,14 @@ class Settings(BaseSettings):
         if self.AWS_REGION:
             self.AWS_REGION = self.AWS_REGION.strip("<> '\"")
 
-        # Auto-detect from aws.md if credentials not set in .env
-        if not self.AWS_ACCESS_KEY_ID or not self.AWS_SECRET_ACCESS_KEY:
-            self._load_from_aws_md()
+        self.APP_ENV = self.APP_ENV.strip().lower()  # "Production" must still count as production
 
-    def _load_from_aws_md(self):
-        import re
-        from pathlib import Path
-
-        candidates = [
-            Path("aws.md"),
-            Path("../aws.md"),
-            Path(__file__).resolve().parent.parent.parent.parent / "aws.md",
-            Path(__file__).resolve().parent.parent.parent / "aws.md",
-        ]
-        for p in candidates:
-            if p.is_file():
-                try:
-                    content = p.read_text(encoding="utf-8")
-                    key = re.search(r"AWS_ACCESS_KEY_ID\s*[=:]?\s*[<]?([A-Za-z0-9_+-]+)[>]?", content)
-                    secret = re.search(r"AWS_SECRET_ACCESS_KEY\s*[=:]?\s*[<]?([A-Za-z0-9_+=/.-]+)[>]?", content)
-                    region = re.search(r"AWS_REGION\s*[=:]?\s*[<]?([A-Za-z0-9_-]+)[>]?", content)
-                    model = re.search(r"BEDROCK_MODEL_ID\s*[=:]?\s*[<]?([A-Za-z0-9_.:-]+)[>]?", content)
-                    if key and not self.AWS_ACCESS_KEY_ID:
-                        self.AWS_ACCESS_KEY_ID = key.group(1).strip()
-                    if secret and not self.AWS_SECRET_ACCESS_KEY:
-                        self.AWS_SECRET_ACCESS_KEY = secret.group(1).strip()
-                    if region and (not self.AWS_REGION or self.AWS_REGION == "us-east-1"):
-                        self.AWS_REGION = region.group(1).strip()
-                    if model and not self.BEDROCK_MODEL_ID:
-                        self.BEDROCK_MODEL_ID = model.group(1).strip()
-                    if self.AWS_ACCESS_KEY_ID and self.AWS_SECRET_ACCESS_KEY:
-                        break
-                except Exception:
-                    pass
+        # Production never serves debug behaviour, whatever DEBUG is set to
+        if self.APP_ENV == "production":
+            self.DEBUG = False
 
 
 settings = Settings()
+
+if not settings.TOMTOM_API_KEY:
+    logger.warning("TOMTOM_API_KEY is not set; live traffic, incident and route data will fall back to demo mode")

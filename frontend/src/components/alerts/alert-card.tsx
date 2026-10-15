@@ -29,7 +29,15 @@ const ALERT_ICONS: Record<string, React.ElementType> = {
   WEATHER_RISK: CloudRain,
 };
 
-const SEVERITY_STYLES: Record<AlertSeverityType, { text: string; bg: string; border: string; iconColor: string }> = {
+const ALERT_TYPE_LABELS: Record<string, string> = {
+  SEVERE_CONGESTION: 'Congestion',
+  MAJOR_INCIDENT: 'Incident',
+  ROUTE_DELAY: 'Route delay',
+  TRAFFIC_INCREASE: 'Traffic increase',
+  WEATHER_RISK: 'Weather risk',
+};
+
+const SEVERITY_STYLES:Record<AlertSeverityType, { text: string; bg: string; border: string; iconColor: string }> = {
   CRITICAL: {
     text: 'text-rose-700 dark:text-rose-400',
     bg: 'bg-rose-50 dark:bg-rose-950/40',
@@ -89,6 +97,9 @@ export function AlertCard({ alert, isRead, onToggleRead }: AlertCardProps) {
                 >
                   {alert.severity}
                 </Badge>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  {ALERT_TYPE_LABELS[alert.type] ?? alert.type}
+                </span>
               </div>
 
               <span className="text-[11px] text-slate-400 flex items-center gap-1 shrink-0" suppressHydrationWarning>

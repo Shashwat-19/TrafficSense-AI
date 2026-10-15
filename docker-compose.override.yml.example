@@ -1,0 +1,20 @@
+# Development override for live-reload backend work.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose up backend
+#
+# docker compose reads docker-compose.override.yml automatically on top of
+# docker-compose.yml. The copy is gitignored, so local changes stay local.
+# The backend source is bind-mounted, so edits reload without a rebuild.
+# UID and GID default to 1000 when unset. Export them (export UID GID) to
+# match your host user, so files created in the container stay yours.
+
+services:
+  backend:
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - APP_ENV=development
+    volumes:
+      - ./backend:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

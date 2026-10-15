@@ -6,13 +6,16 @@ backend, using AWS Bedrock Converse API with tool calling to access
 existing traffic services.
 """
 
+import asyncio
 import json
 import logging
 import uuid
+import weakref
 from datetime import datetime, timezone
 from typing import Any
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
     ClientError,
@@ -77,21 +80,39 @@ class ConversationStore:
             "role": role,
             "content": [{"text": content}],
         })
-        # Prune to keep only the last N messages
-        if len(self._conversations[conversation_id]) > self._max_messages:
-            self._conversations[conversation_id] = (
-                self._conversations[conversation_id][-self._max_messages:]
-            )
+        self._prune(conversation_id)
 
     def add_raw_messages(self, conversation_id: str, messages: list[dict]) -> None:
         """Add raw Bedrock-format messages (used for tool-use turns)."""
         if conversation_id not in self._conversations:
             self._conversations[conversation_id] = []
         self._conversations[conversation_id].extend(messages)
-        if len(self._conversations[conversation_id]) > self._max_messages:
-            self._conversations[conversation_id] = (
-                self._conversations[conversation_id][-self._max_messages:]
-            )
+        self._prune(conversation_id)
+
+    def _prune(self, conversation_id: str) -> None:
+        """Keep the last N messages, starting the window at a plain user turn.
+
+        A tool-use/tool-result exchange is never split: cuts only happen at a
+        user message that carries text, not a toolResult, so no toolResult is
+        left without its toolUse.
+        """
+        messages = self._conversations[conversation_id]
+        if len(messages) <= self._max_messages:
+            return
+        messages = messages[-self._max_messages:]
+        start = next(
+            (i for i, m in enumerate(messages)
+             if m["role"] == "user" and not any("toolResult" in b for b in m["content"])),
+            len(messages),
+        )
+        self._conversations[conversation_id] = messages[start:]
+
+    def restore(self, conversation_id: str, messages: list[dict]) -> None:
+        """Roll a conversation back to an earlier snapshot (an empty one removes it)."""
+        if messages:
+            self._conversations[conversation_id] = messages
+        else:
+            self._conversations.pop(conversation_id, None)
 
     def clear(self, conversation_id: str) -> None:
         self._conversations.pop(conversation_id, None)
@@ -104,7 +125,15 @@ class ConversationStore:
 
 def _create_bedrock_client():
     """Create a boto3 Bedrock Runtime client."""
-    kwargs: dict[str, Any] = {"region_name": settings.AWS_REGION}
+    kwargs: dict[str, Any] = {
+        "region_name": settings.AWS_REGION,
+        # Bound connect and retries too; the overall deadline in chat() covers the whole tool loop.
+        "config": Config(
+            connect_timeout=min(5, settings.CHATBOT_REQUEST_TIMEOUT),
+            read_timeout=settings.CHATBOT_REQUEST_TIMEOUT,
+            retries={"mode": "standard", "total_max_attempts": 2},
+        ),
+    }
     if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY:
         kwargs["aws_access_key_id"] = settings.AWS_ACCESS_KEY_ID
         kwargs["aws_secret_access_key"] = settings.AWS_SECRET_ACCESS_KEY
@@ -121,6 +150,8 @@ class ChatbotService:
             max_messages=settings.CHATBOT_MAX_HISTORY
         )
         self._client = None
+        # One lock per conversation; weak values so idle conversations don't pile up.
+        self._locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
 
     @property
     def client(self):
@@ -145,11 +176,18 @@ class ChatbotService:
         -------
         dict with keys: response, conversation_id, sources, tools_used, actions, timestamp
         """
-        request_start = datetime.now(tz=timezone.utc)
-
-        # Generate or reuse conversation ID
         if not conversation_id:
             conversation_id = str(uuid.uuid4())
+
+        # Turns of one conversation run one at a time; different conversations stay concurrent.
+        async with self._locks.setdefault(conversation_id, asyncio.Lock()):
+            return await self._chat_turn(message, conversation_id)
+
+    async def _chat_turn(self, message: str, conversation_id: str) -> dict:
+        request_start = datetime.now(tz=timezone.utc)
+
+        # Snapshot so a cancelled request can be rolled back (no dangling user turn)
+        history_before = list(self._store.get_messages(conversation_id))
 
         # Add user message to history
         self._store.add_message(conversation_id, "user", message)
@@ -162,13 +200,21 @@ class ChatbotService:
         sources: list[str] = []
 
         try:
-            response_text = await self._converse_with_tools(
-                messages=messages,
-                conversation_id=conversation_id,
-                tools_used=tools_used,
-                actions=all_actions,
-                sources=sources,
-            )
+            async with asyncio.timeout(settings.CHATBOT_REQUEST_TIMEOUT):
+                response_text = await self._converse_with_tools(
+                    messages=messages,
+                    conversation_id=conversation_id,
+                    tools_used=tools_used,
+                    actions=all_actions,
+                    sources=sources,
+                )
+        except asyncio.CancelledError:
+            # Bedrock rejects consecutive user turns, so drop this half-finished turn.
+            self._store.restore(conversation_id, history_before)
+            raise
+        except TimeoutError:
+            logger.error("Chat request exceeded %ss", settings.CHATBOT_REQUEST_TIMEOUT)
+            response_text = "⚠️ The AI service took too long to respond. Please try again."
         except NoCredentialsError:
             logger.error("AWS credentials not configured")
             response_text = (
@@ -247,7 +293,8 @@ class ChatbotService:
         working_messages = [m for m in messages]  # shallow copy
 
         for round_num in range(max_tool_rounds):
-            response = self.client.converse(
+            response = await asyncio.to_thread(
+                self.client.converse,
                 modelId=settings.BEDROCK_MODEL_ID,
                 system=[{"text": SYSTEM_PROMPT}],
                 messages=working_messages,
@@ -276,8 +323,9 @@ class ChatbotService:
                         sources.append(tool_name)
 
                         # Execute the tool
-                        result_text, tool_actions = execute_tool(
-                            tool_name, tool_input
+                        # Tools make blocking HTTP calls; keep them off the event loop
+                        result_text, tool_actions = await asyncio.to_thread(
+                            execute_tool, tool_name, tool_input
                         )
                         actions.extend(tool_actions)
 

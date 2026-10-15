@@ -1,5 +1,8 @@
 version: "3.8"
 
+# Production-style stack. For local live-reload development, add a
+# docker-compose.override.yml (see README "Docker development override").
+
 services:
   backend:
     build:
@@ -9,8 +12,8 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
-    volumes:
-      - ./backend:/app
+    environment:
+      - APP_ENV=production
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -24,6 +27,7 @@ services:
       dockerfile: Dockerfile
       args:
         - NEXT_PUBLIC_API_URL=http://localhost:8000
+        - NEXT_PUBLIC_TOMTOM_API_KEY=${NEXT_PUBLIC_TOMTOM_API_KEY:-}
     ports:
       - "3000:3000"
     environment:

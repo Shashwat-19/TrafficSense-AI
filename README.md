@@ -193,7 +193,7 @@ sequenceDiagram
 
 | Tier | Component | Primary Responsibility | SLA / Latency |
 |---|---|---|---|
-| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Pre-rendered static shell (`< 50ms` FCP) |
+| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Server-rendered Next.js app (`next start`, not a static export) |
 | **2. Gateway** | FastAPI + Starlette + Middleware | Route dispatch, strict Pydantic v2 validation, CORS authorization, structured JSON access logging, and in-memory TTL caching. | `< 5ms` overhead |
 | **3. Domain Services** | Python 3.11 Microservices | Core business logic for traffic corridor normalization, route delay penalties, incident tracking, and Bedrock tool dispatching. | `< 15ms` execution |
 | **4. AI / ML** | XGBoost Regressor + AWS Bedrock | 9-feature spatio-temporal speed forecasts (15/30/60m) and multi-turn conversational AI reasoning via Amazon Nova Lite. | ML: `< 20ms` • Bedrock: `~600–1200ms` |
@@ -352,15 +352,18 @@ cd TrafficSense-AI
 
 ### 2. Run with Docker Compose (Recommended)
 ```bash
-# Copy backend environment configuration
-cp backend/.env.example backend/.env
+# Copy backend environment configuration (only if it does not exist yet)
+[ -f backend/.env ] || cp backend/.env.example backend/.env
+
+# Optional: bake the TomTom key into the frontend build (host environment variable)
+export NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key
 
 # Build and start services
 docker-compose up --build
 ```
 * **Web Application**: [http://localhost:3000](http://localhost:3000)
 * **Interactive AI Assistant**: [http://localhost:3000/chat](http://localhost:3000/chat)
-* **FastAPI Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Backend health check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (`/docs` is disabled because the compose file sets `APP_ENV=production`)
 
 ---
 
@@ -383,7 +386,7 @@ curl http://localhost:8000/api/v1/health
 ```
 
 #### Frontend Setup
-In a new terminal window:
+Requires Node.js 20.9+ (Next.js 16). In a new terminal window:
 ```bash
 cd frontend
 npm install
@@ -488,7 +491,7 @@ All responses conform to a unified standard envelope:
 | `GET` | `/api/v1/traffic/incidents` | Active traffic incidents & hazards | Query: `severity`, `incident_type` |
 | `GET` | `/api/v1/weather` | Current Bangalore weather metrics | None |
 | `GET` | `/api/v1/predictions` | Multi-horizon ML speed forecasts | Query: `horizon` (15/30/60), `segment_id` |
-| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (origin, destination, avoid_congestion) |
+| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (`origin_lat`, `origin_lng`, `destination_lat`, `destination_lng`, optional `departure_time`, `avoid_congestion`, `avoid_incidents`) |
 | `GET` | `/api/v1/analytics` | Aggregated citywide statistics | None |
 | `GET` | `/api/v1/alerts` | Urgent alerts & notifications | Query: `alert_type`, `severity` |
 | `GET` | `/api/v1/users/preferences` | Retrieve user preferences & saved hubs | None |
@@ -496,8 +499,8 @@ All responses conform to a unified standard envelope:
 | `POST` | `/api/v1/chat` | Send query to Bedrock AI Assistant | Body: `ChatRequest` (`message`, `conversation_id`) |
 | `DELETE` | `/api/v1/chat/{conversation_id}` | Reset context memory for a session | Path: `conversation_id` |
 
-* **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-* **ReDoc Specification**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+* **Interactive Swagger UI** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc Specification** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
@@ -544,7 +547,7 @@ The frontend code adheres strictly to TypeScript and ESLint standards with zero 
 ```bash
 cd frontend
 npm run lint       # Result: 0 errors, 0 warnings
-npm run build      # Result: All 12 routes static and prerendered cleanly
+npm run build      # Result: All 9 app pages (src/app/**/page.tsx) build cleanly
 ```
 
 ---
@@ -558,11 +561,40 @@ docker-compose up --build -d
 ```
 
 ### Option 2: Unified Production Container (`Dockerfile`)
-Packages both the FastAPI backend and Next.js static output into a single lightweight production image supervised by `docker-entrypoint.sh`:
+Packages the FastAPI backend and the Next.js production server (`next start`, not a static export) into a single image. `docker-entrypoint.sh` starts the backend, waits for its health endpoint, then starts the frontend. The containers run as a non-root user.
 ```bash
-docker build -t trafficsense-ai:latest .
+docker build --build-arg NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key -t trafficsense-ai:latest .
+# Remote deployment: also add --build-arg NEXT_PUBLIC_API_URL=https://api.example.com (the URL the browser calls)
 docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:latest
 ```
+`NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles. The command above is local-only: `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000`, so a browser on another machine would call its own localhost. For a remote deployment, pass `NEXT_PUBLIC_API_URL` as a build argument too.
+
+### Docker environment variables
+
+| Variable | Set where | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_TOMTOM_API_KEY` | Host environment (read by `docker-compose.yml` as a frontend build arg) | Embedded in the frontend bundle at build time, so it is public. Rebuild after changing it. Restrict the key by domain in the TomTom dashboard. |
+| `NEXT_PUBLIC_API_URL` | Build arg (default `http://localhost:8000`) | Backend URL the browser calls. If unset, the browser uses relative `/api/v1` paths, which Next proxies to `BACKEND_URL` (default `http://localhost:8000`, fixed at build time). |
+| `APP_ENV` | Set to `production` in the Dockerfiles and `docker-compose.yml` | `production` disables `/docs` and `/redoc` and forces `DEBUG` off. |
+| `DEBUG` | Image default `false` | Ignored while `APP_ENV=production`. |
+| `CORS_ORIGINS` | Runtime (`backend/.env` or `-e`) | Comma-separated allowed origins. |
+| `BACKEND_HEALTH_URL`, `BACKEND_WAIT_TIMEOUT` | Runtime, unified container only | Health URL and seconds that `docker-entrypoint.sh` waits for the backend. |
+
+### Docker development override
+
+`docker-compose.yml` does not bind-mount the source tree. The backend runs the code baked into the image as the non-root `app` user (uid 10001), so a host bind mount is not used by default: host files owned by another uid cannot be written by that user and the mount hides the image's `/app` contents. For live-reload development, create a `docker-compose.override.yml` next to `docker-compose.yml` (keep it uncommitted):
+
+```yaml
+services:
+  backend:
+    environment:
+      - APP_ENV=development
+    volumes:
+      - ./backend:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+```
+
+Compose loads this file automatically with `docker-compose up`. Remove it for production-style runs.
 
 ---
 

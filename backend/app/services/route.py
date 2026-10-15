@@ -17,8 +17,19 @@ from app.models.schemas import (
     RouteResponse,
     CongestionLevel,
 )
-from app.services.traffic import calculate_congestion, get_congestion_level
+from cachetools import TTLCache
 
+from app.services.traffic import (
+    FALLBACK_CACHE_TTL,
+    cache_get,
+    cache_set,
+    calculate_congestion,
+    get_congestion_level,
+)
+
+
+_route_cache: TTLCache = TTLCache(maxsize=32, ttl=settings.TRAFFIC_CACHE_TTL)  # one entry per origin/destination
+_route_fallback_cache: TTLCache = TTLCache(maxsize=32, ttl=FALLBACK_CACHE_TTL)  # demo routes after a live failure
 
 # ── Bangalore landmark coordinates ────────────────────────────────────────
 
@@ -139,6 +150,11 @@ class RouteService:
         import logging
         logger = logging.getLogger(__name__)
 
+        cache_key = f"{req.origin_lat},{req.origin_lng}:{req.destination_lat},{req.destination_lng}:{req.avoid_congestion}"
+        cached = cache_get(_route_cache, cache_key) or cache_get(_route_fallback_cache, cache_key)
+        if cached is not None:
+            return cached
+
         url = f"https://api.tomtom.com/routing/1/calculateRoute/{req.origin_lat},{req.origin_lng}:{req.destination_lat},{req.destination_lng}/json"
         params = {
             "key": settings.TOMTOM_API_KEY,
@@ -204,10 +220,15 @@ class RouteService:
                             destination=dest,
                             alternatives=alternatives,
                         )
-                        return response.model_dump(mode="json"), "live"
+                        result = response.model_dump(mode="json"), "live"
+                        cache_set(_route_cache, cache_key, result)
+                        return result
                 elif resp.status_code in (401, 403):
                     logger.warning("TomTom Routing API key authentication failed (HTTP %s).", resp.status_code)
         except Exception as e:
             logger.error("Error fetching live TomTom routes: %s", e)
 
-        return self._get_demo_routes(req)
+        # Cache the demo fallback so an outage does not repeat the TomTom call on every request
+        fallback = self._get_demo_routes(req)
+        cache_set(_route_fallback_cache, cache_key, fallback)
+        return fallback

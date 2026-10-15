@@ -38,7 +38,8 @@ export default function PredictionsPage() {
 
   const segments = (trafficRes?.data ?? []) as TrafficSegment[];
   const predictions = (predRes?.data ?? []) as TrafficPrediction[];
-  const dataMode = predRes?.data_mode || 'demo';
+  // The predictions endpoint reports 'ml_prediction'/'heuristic', not live/demo, so label by the traffic feed it is built on
+  const dataMode = trafficRes?.data_mode || 'demo';
 
   // Apply filters
   const filteredPredictions = predictions.filter(p => {

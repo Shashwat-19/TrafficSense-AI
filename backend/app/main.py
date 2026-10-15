@@ -2,8 +2,11 @@
 TrafficSense AI — FastAPI application entry point.
 """
 
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.endpoints import router as api_v1_router
@@ -19,13 +22,30 @@ app = FastAPI(
         "focused on Bangalore, India."
     ),
     version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if settings.APP_ENV == "production" else "/docs",
+    redoc_url=None if settings.APP_ENV == "production" else "/redoc",
+    openapi_url=None if settings.APP_ENV == "production" else "/openapi.json",
 )
 
+logger = logging.getLogger("trafficsense")
+
 # ── Middleware ─────────────────────────────────────────────────────────────
+# Starlette: the last add_middleware() call is the outermost layer. CORS must be
+# outermost, and it is added last below. Starlette's own ServerErrorMiddleware sits
+# outside everything, so a raw exception would skip CORS. The catch-all below turns
+# unhandled errors into a 500 response inside CORS, which then gets the headers.
 
 app.add_middleware(BaseHTTPMiddleware, dispatch=log_requests)
+
+
+@app.middleware("http")
+async def catch_unhandled_errors(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception:
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,7 +67,7 @@ def root():
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": settings.APP_ENV,
-        "docs": "/docs",
+        "docs": app.docs_url,
         "api_base": "/api/v1",
         "endpoints": {
             "traffic": "/api/v1/traffic/current",

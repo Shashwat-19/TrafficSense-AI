@@ -19,10 +19,13 @@ from app.models.schemas import (
     IncidentStats,
     TopCongestedRoad,
 )
+from app.services.incident import IncidentService
 from app.services.traffic import (
     TrafficService,
     calculate_congestion,
     get_congestion_level,
+    cache_get,
+    cache_set,
     _time_factor,
     BANGALORE_SEGMENTS,
 )
@@ -39,16 +42,18 @@ class AnalyticsService:
 
     def get_analytics(self) -> Tuple[dict, str]:
         cache_key = "analytics"
-        cached = _analytics_cache.get(cache_key)
+        cached = cache_get(_analytics_cache, cache_key)
         if cached is not None:
             return cached
 
-        result = self._compute_analytics()
-        _analytics_cache[cache_key] = (result, "demo")
-        return result, "demo"
+        result, mode = self._compute_analytics()
+        # Only live results are cached: a demo fallback must not outlive a live recovery
+        if mode == "live":
+            cache_set(_analytics_cache, cache_key, (result, mode))
+        return result, mode
 
-    def _compute_analytics(self) -> dict:
-        segments_data, _ = self._traffic.get_current_traffic()
+    def _compute_analytics(self) -> Tuple[dict, str]:
+        segments_data, mode = self._traffic.get_current_traffic()
 
         # ── Overall metrics ────────────────────────────────────────────
         total = len(segments_data)
@@ -57,7 +62,7 @@ class AnalyticsService:
                 overall_congestion=0, overall_level=CongestionLevel.LOW,
                 avg_speed=0, total_segments=0, total_incidents=0,
             )
-            return empty.model_dump(mode="json")
+            return empty.model_dump(mode="json"), mode
 
         speeds = [s["current_speed"] for s in segments_data]
         congestions = [s["congestion_ratio"] for s in segments_data]
@@ -116,7 +121,6 @@ class AnalyticsService:
         ]
 
         # ── Incident stats (from incident templates) ──────────────────
-        from app.services.incident import IncidentService
         inc_svc = IncidentService()
         incidents, _ = inc_svc.get_incidents()
         inc_type_counts: dict[str, int] = {}
@@ -142,4 +146,4 @@ class AnalyticsService:
             speed_vs_freeflow=speed_vs_freeflow,
         )
 
-        return analytics.model_dump(mode="json")
+        return analytics.model_dump(mode="json"), mode

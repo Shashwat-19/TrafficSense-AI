@@ -20,10 +20,10 @@ interface PredictionCardProps {
 }
 
 export function PredictionCard({ prediction }: PredictionCardProps) {
-  const currentSpeed = prediction.current_speed ?? 30;
+  const currentSpeed = prediction.current_speed;
   const predictedSpeed = prediction.predicted_speed;
-  const speedDiff = Math.round(predictedSpeed - currentSpeed);
-  const isDropping = speedDiff < 0;
+  const speedDiff = currentSpeed == null ? null : Math.round(predictedSpeed - currentSpeed);
+  const isDropping = speedDiff !== null && speedDiff < 0;
   const colorInfo = CONGESTION_COLORS[prediction.predicted_level as CongestionLevel] || CONGESTION_COLORS.LOW;
   const congestionPct = Math.round(prediction.predicted_congestion * 100);
   const confidencePct = Math.round(prediction.confidence * 100);
@@ -55,7 +55,7 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
             <span className="text-[11px] text-slate-400 block mb-1">Current Speed</span>
             <span className="text-xl font-bold text-slate-700 dark:text-slate-300">
-              {Math.round(currentSpeed)} <span className="text-xs font-normal text-slate-400">km/h</span>
+              {currentSpeed == null ? 'n/a' : <>{Math.round(currentSpeed)} <span className="text-xs font-normal text-slate-400">km/h</span></>}
             </span>
           </div>
 
@@ -63,8 +63,12 @@ export function PredictionCard({ prediction }: PredictionCardProps) {
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">Forecast</span>
               <span className={`inline-flex items-center text-[11px] font-bold ${isDropping ? 'text-rose-600' : 'text-emerald-600'}`}>
-                {isDropping ? <TrendingDown className="h-3 w-3 mr-0.5" /> : <TrendingUp className="h-3 w-3 mr-0.5" />}
-                {speedDiff > 0 ? `+${speedDiff}` : speedDiff}
+                {speedDiff !== null && (
+                  <>
+                    {isDropping ? <TrendingDown className="h-3 w-3 mr-0.5" /> : <TrendingUp className="h-3 w-3 mr-0.5" />}
+                    {speedDiff > 0 ? `+${speedDiff}` : speedDiff}
+                  </>
+                )}
               </span>
             </div>
             <span className="text-xl font-bold text-blue-700 dark:text-blue-300">

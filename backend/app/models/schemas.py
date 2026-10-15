@@ -2,8 +2,8 @@
 TrafficSense AI — Pydantic schemas for all data models.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated, Optional, List, Any
 from datetime import datetime, timezone
 from enum import Enum
 
@@ -132,10 +132,10 @@ class RouteAlternative(BaseModel):
 
 
 class RouteRequest(BaseModel):
-    origin_lat: float
-    origin_lng: float
-    destination_lat: float
-    destination_lng: float
+    origin_lat: float = Field(ge=-90, le=90)
+    origin_lng: float = Field(ge=-180, le=180)
+    destination_lat: float = Field(ge=-90, le=90)
+    destination_lng: float = Field(ge=-180, le=180)
     departure_time: Optional[datetime] = None
     avoid_congestion: bool = False
     avoid_incidents: bool = False
@@ -207,21 +207,21 @@ class Alert(BaseModel):
 # ── User ───────────────────────────────────────────────────────────────────
 
 class SavedLocation(BaseModel):
-    id: str
-    name: str
-    latitude: float
-    longitude: float
-    label: str = ""  # e.g., "Home", "Work"
+    id: str = Field(max_length=64)
+    name: str = Field(max_length=100)
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    label: str = Field("", max_length=30)  # e.g., "Home", "Work"
 
 
 class RecentRoute(BaseModel):
-    id: str
-    origin_name: str
-    destination_name: str
-    origin_lat: float
-    origin_lng: float
-    destination_lat: float
-    destination_lng: float
+    id: str = Field(max_length=64)
+    origin_name: str = Field(max_length=200)
+    destination_name: str = Field(max_length=200)
+    origin_lat: float = Field(ge=-90, le=90)
+    origin_lng: float = Field(ge=-180, le=180)
+    destination_lat: float = Field(ge=-90, le=90)
+    destination_lng: float = Field(ge=-180, le=180)
     searched_at: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
@@ -237,6 +237,21 @@ class UserPreferences(BaseModel):
     alert_types: List[AlertType] = list(AlertType)
 
 
+class UserPreferencesUpdate(BaseModel):
+    """Partial update for preferences. Unknown keys and oversized lists are rejected."""
+    model_config = ConfigDict(extra="forbid")
+
+    notifications_enabled: Optional[bool] = None
+    default_map_center_lat: Optional[float] = Field(None, ge=-90, le=90)
+    default_map_center_lng: Optional[float] = Field(None, ge=-180, le=180)
+    default_map_zoom: Optional[int] = Field(None, ge=1, le=20)
+    preferred_units: Optional[str] = Field(None, max_length=20)
+    saved_locations: Optional[List[SavedLocation]] = Field(None, max_length=50)
+    recent_routes: Optional[List[RecentRoute]] = Field(None, max_length=50)
+    favorite_areas: Optional[List[Annotated[str, Field(max_length=100)]]] = Field(None, max_length=50)
+    alert_types: Optional[List[AlertType]] = None
+
+
 # ── API Response Wrapper ───────────────────────────────────────────────────
 
 class AppResponse(BaseModel):
@@ -244,6 +259,7 @@ class AppResponse(BaseModel):
     data_mode: str = Field(description="'live' or 'demo'")
     last_updated: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
     source: str = ""
+    warnings: List[str] = []
 
 
 # ── Chat ───────────────────────────────────────────────────────────────────
@@ -254,9 +270,17 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
+CONVERSATION_ID_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000, description="User message")
-    conversation_id: Optional[str] = Field(None, description="Optional conversation ID for context")
+    conversation_id: Optional[str] = Field(
+        None,
+        max_length=64,
+        pattern=CONVERSATION_ID_PATTERN,
+        description="Optional conversation ID for context (letters, digits, '-' and '_', max 64)",
+    )
 
 
 class ChatAction(BaseModel):

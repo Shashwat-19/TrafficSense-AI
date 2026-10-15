@@ -6,7 +6,8 @@ each backed by existing TrafficSense services.
 """
 
 import logging
-from typing import Any
+import re
+from typing import Any, Optional
 
 from app.models.schemas import RouteRequest
 from app.services.traffic import TrafficService
@@ -225,14 +226,21 @@ LANDMARKS = {
 }
 
 
-def _resolve_location(name: str) -> tuple[float, float]:
-    """Resolve a location name to (lat, lng) using landmarks."""
+def _resolve_location(name: str) -> Optional[tuple[float, float]]:
+    """Resolve a location name to (lat, lng) using landmarks, or None if unknown."""
     name_lower = name.lower().strip()
-    for key, coords in LANDMARKS.items():
-        if key in name_lower or name_lower in key:
-            return coords
-    # Default to Bangalore center
-    return (12.9716, 77.5946)
+    # Names under 3 chars (e.g. "", "a") would substring-match almost every landmark.
+    if len(name_lower) < 3:
+        return None
+    if name_lower in LANDMARKS:
+        return LANDMARKS[name_lower]
+    # "MG Road, Bangalore" names several landmarks; the dict lists the city names last, so the place wins.
+    named = [k for k in LANDMARKS if re.search(rf"\b{re.escape(k)}\b", name_lower)]
+    if named:
+        return LANDMARKS[named[0]]
+    # A fragment such as "road" fits several landmarks: only accept it when it fits one place.
+    fragments = {c for k, c in LANDMARKS.items() if name_lower in k}
+    return fragments.pop() if len(fragments) == 1 else None
 
 
 # ── Tool execution ─────────────────────────────────────────────────────────
@@ -280,7 +288,7 @@ def execute_tool(tool_name: str, tool_input: dict[str, Any]) -> tuple[str, list[
 
     except Exception as e:
         logger.error("Tool execution error for %s: %s", tool_name, e, exc_info=True)
-        return f"Error executing {tool_name}: {str(e)}", actions
+        return f"Error executing {tool_name}. Please try again later.", actions
 
 
 # ── Individual tool implementations ────────────────────────────────────────
@@ -289,7 +297,7 @@ def _exec_get_current_traffic(
     tool_input: dict, actions: list[dict]
 ) -> tuple[str, list[dict]]:
     data, mode = _traffic_service.get_current_traffic()
-    road_filter = tool_input.get("road_name", "").lower()
+    road_filter = (tool_input.get("road_name") or "").lower()
 
     if road_filter:
         data = [
@@ -368,15 +376,22 @@ def _exec_get_prediction(
     if horizon not in (15, 30, 60):
         horizon = 30
 
-    road_name = tool_input.get("road_name", "").lower()
+    road_name = (tool_input.get("road_name") or "").strip()
     segment_id = None
 
     if road_name:
         from app.services.traffic import BANGALORE_SEGMENTS
         for seg in BANGALORE_SEGMENTS:
-            if road_name in seg["road_name"].lower():
+            if road_name.lower() in seg["road_name"].lower():
                 segment_id = seg["id"]
                 break
+        if segment_id is None:
+            examples = ", ".join(s["road_name"] for s in BANGALORE_SEGMENTS[:5])
+            return (
+                f"I couldn't find a monitored road matching '{road_name}'. "
+                f"Try one of these, e.g. {examples}, or ask without a road name for all roads.",
+                actions,
+            )
 
     data, mode = _prediction_service.get_predictions(
         segment_id=segment_id, horizon=horizon
@@ -408,6 +423,14 @@ def _exec_find_route(
 
     origin_coords = _resolve_location(origin_name)
     dest_coords = _resolve_location(dest_name)
+    unknown = [n for n, c in ((origin_name, origin_coords), (dest_name, dest_coords)) if c is None]
+    if unknown:
+        names = ", ".join(f"'{str(n)[:50]}'" for n in unknown)
+        return (
+            f"Could not find {names}. Please name a known Bangalore landmark, "
+            "for example Koramangala, MG Road, Whitefield, Electronic City, "
+            "Hebbal, Indiranagar or the Airport."
+        ), actions
 
     req = RouteRequest(
         origin_lat=origin_coords[0],

@@ -56,6 +56,9 @@ def test_get_incidents():
 def test_get_incidents_with_filter():
     response = client.get("/api/v1/traffic/incidents?severity=HIGH")
     assert response.status_code == 200
+    items = response.json()["data"]
+    assert isinstance(items, list)
+    assert all(item["severity"] == "HIGH" for item in items)
 
 
 # ── Weather ────────────────────────────────────────────────────────────────
@@ -91,14 +94,24 @@ def test_get_predictions_invalid_horizon():
     assert response.status_code == 400
 
 
-def test_get_predictions_30min():
-    response = client.get("/api/v1/predictions?horizon=30")
+def _assert_predictions_for_horizon(horizon: int):
+    response = client.get(f"/api/v1/predictions?horizon={horizon}")
     assert response.status_code == 200
+    items = response.json()["data"]
+    assert len(items) > 0
+    for pred in items:
+        assert pred["horizon_minutes"] == horizon
+        assert isinstance(pred["predicted_speed"], (int, float))
+        assert 0 <= pred["predicted_congestion"] <= 1
+        assert isinstance(pred["predicted_level"], str)
+
+
+def test_get_predictions_30min():
+    _assert_predictions_for_horizon(30)
 
 
 def test_get_predictions_60min():
-    response = client.get("/api/v1/predictions?horizon=60")
-    assert response.status_code == 200
+    _assert_predictions_for_horizon(60)
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────
@@ -168,9 +181,15 @@ def test_chat_endpoint_exists():
     response = client.post("/api/v1/chat", json={
         "message": "Hello",
     })
-    # May fail due to no AWS credentials, but should not be 404 or 405
-    assert response.status_code != 404
-    assert response.status_code != 405
+    # Bedrock failures still return 200 with an error message, so the shape holds either way
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data["response"], str) and data["response"]
+    assert isinstance(data["conversation_id"], str) and data["conversation_id"]
+    assert isinstance(data["sources"], list)
+    assert isinstance(data["tools_used"], list)
+    assert isinstance(data["actions"], list)
+    assert "timestamp" in data
 
 
 def test_chat_invalid_request():
@@ -202,7 +221,7 @@ def test_chatbot_tools_execute():
 
     # Test get_current_traffic tool
     result, actions = execute_tool("get_current_traffic", {})
-    assert "Traffic data" in result or "segments" in result.lower()
+    assert result.startswith("Traffic data (")
     assert isinstance(actions, list)
 
     # Test with road filter
@@ -211,7 +230,8 @@ def test_chatbot_tools_execute():
 
     # Test get_weather tool
     result, actions = execute_tool("get_weather", {})
-    assert "temperature" in result.lower() or "weather" in result.lower()
+    assert result.startswith("Current Bangalore weather (")
+    assert "- Temperature:" in result
 
     # Test get_traffic_incidents tool
     result, actions = execute_tool("get_traffic_incidents", {})
@@ -223,7 +243,8 @@ def test_chatbot_tools_execute():
 
     # Test get_traffic_analytics tool
     result, actions = execute_tool("get_traffic_analytics", {})
-    assert "congestion" in result.lower() or "analytics" in result.lower()
+    assert result.startswith("Bangalore Traffic Analytics (")
+    assert "- Overall congestion:" in result
 
     # Test get_alerts tool
     result, actions = execute_tool("get_alerts", {})
@@ -234,11 +255,11 @@ def test_chatbot_tools_execute():
         "origin": "Koramangala",
         "destination": "Whitefield",
     })
-    assert "route" in result.lower() or "km" in result.lower()
+    assert result.startswith("Routes from Koramangala to Whitefield:")
 
     # Test unknown tool
     result, actions = execute_tool("nonexistent_tool", {})
-    assert "unknown" in result.lower() or "Unknown" in result
+    assert result == "Unknown tool: nonexistent_tool"
 
 
 def test_chatbot_conversation_store():

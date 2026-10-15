@@ -5,6 +5,7 @@ Integrates with OpenWeather API (live) or returns realistic
 time-varying mock weather for Bangalore (demo mode).
 """
 
+import logging
 import random
 from datetime import datetime, timezone
 from typing import Tuple
@@ -12,6 +13,11 @@ from cachetools import TTLCache
 
 from app.core.config import settings
 from app.models.schemas import WeatherData
+from app.services.traffic import FALLBACK_CACHE_TTL, cache_get, cache_set, ist_hour
+
+logger = logging.getLogger(__name__)
+
+OPENWEATHER_URL = "https://api.openweathermap.org/data/2.5/weather"
 
 
 # ── Bangalore weather patterns ─────────────────────────────────────────────
@@ -31,7 +37,7 @@ _WEATHER_CONDITIONS = [
 def _generate_mock_weather() -> WeatherData:
     """Generate realistic Bangalore weather based on time of day."""
     now = datetime.now(tz=timezone.utc)
-    hour = (now.hour + 5) % 24  # IST
+    hour = ist_hour(now)
 
     # Bangalore temperature ranges: 18-35°C
     if 6 <= hour <= 10:
@@ -69,7 +75,31 @@ def _generate_mock_weather() -> WeatherData:
 
 # ── Cache ──────────────────────────────────────────────────────────────────
 
-_weather_cache: TTLCache = TTLCache(maxsize=1, ttl=settings.WEATHER_CACHE_TTL)
+_weather_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.WEATHER_CACHE_TTL)  # demo and live keys
+_weather_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)  # demo data after a live failure
+
+
+def _parse_openweather(data: dict, now: datetime) -> WeatherData:
+    """Map an OpenWeather /data/2.5/weather payload (units=metric) to WeatherData."""
+    weather = (data.get("weather") or [{}])[0]
+    main = data.get("main") or {}
+    wind = data.get("wind") or {}
+    rain = data.get("rain") or {}
+    return WeatherData(
+        temperature=float(main["temp"]),
+        feels_like=main.get("feels_like"),
+        condition=weather.get("main", "Clear"),
+        description=weather.get("description", ""),
+        icon=weather.get("icon", "01d"),
+        humidity=float(main.get("humidity", 0)),
+        wind_speed=float(wind.get("speed", 0)),
+        wind_direction=wind.get("deg"),
+        visibility=float(data.get("visibility", 10000)),
+        precipitation=float(rain.get("1h", 0.0)),
+        pressure=main.get("pressure"),
+        timestamp=now,
+        source="live",
+    )
 
 
 class WeatherService:
@@ -83,21 +113,47 @@ class WeatherService:
 
     def _get_demo_weather(self) -> Tuple[dict, str]:
         cache_key = "demo_weather"
-        cached = _weather_cache.get(cache_key)
+        cached = cache_get(_weather_cache, cache_key)
         if cached is not None:
             return cached
 
         weather = _generate_mock_weather()
         result = weather.model_dump(mode="json")
-        _weather_cache[cache_key] = (result, "demo")
+        cache_set(_weather_cache, cache_key, (result, "demo"))
         return result, "demo"
 
     def _fetch_live_weather(self) -> Tuple[dict, str]:
-        """
-        Placeholder for OpenWeather API integration.
+        """Live OpenWeather call for Bangalore; falls back to demo weather on any error."""
+        cache_key = "live_weather"
+        cached = cache_get(_weather_cache, cache_key)
+        if cached is not None:
+            return cached
+        cached = cache_get(_weather_fallback_cache, cache_key)
+        if cached is not None:
+            return cached
 
-        When OPENWEATHER_API_KEY is set this method will call:
-        GET https://api.openweathermap.org/data/2.5/weather?lat=12.9716&lon=77.5946&appid=KEY&units=metric
-        """
-        # TODO: implement real OpenWeather call with httpx
-        return self._get_demo_weather()
+        import httpx
+
+        now = datetime.now(tz=timezone.utc)
+        params = {
+            "lat": settings.DEFAULT_LAT,
+            "lon": settings.DEFAULT_LNG,
+            "appid": settings.OPENWEATHER_API_KEY,
+            "units": "metric",
+        }
+        try:
+            with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
+                resp = client.get(OPENWEATHER_URL, params=params)
+            if resp.status_code == 200:
+                weather = _parse_openweather(resp.json(), now)
+                result = (weather.model_dump(mode="json"), "live")
+                cache_set(_weather_cache, cache_key, result)
+                return result
+            # Status only: the request URL carries the API key and must not be logged
+            logger.warning("OpenWeather live call returned HTTP %s; using demo weather.", resp.status_code)
+        except Exception as e:
+            logger.warning("OpenWeather live call failed (%s); using demo weather.", type(e).__name__)
+
+        fallback = self._get_demo_weather()
+        cache_set(_weather_fallback_cache, cache_key, fallback)
+        return fallback

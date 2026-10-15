@@ -60,7 +60,7 @@ export default function AlertsPage() {
   return (
     <PageContainer
       title="Intelligent Alert Center"
-      subtitle="Automated alerts for severe congestion surges, road incidents, and weather risks."
+      subtitle="Alerts for severe congestion and major road incidents across Bangalore."
       dataMode={dataMode}
       actions={
         <div className="flex items-center gap-2">
@@ -93,7 +93,8 @@ export default function AlertsPage() {
       <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs font-semibold text-slate-400 mr-1">Severity:</span>
-          {(['ALL', 'CRITICAL', 'WARNING', 'INFO'] as const).map((sev) => (
+          {/* Backend only emits CRITICAL and WARNING alerts */}
+          {(['ALL', 'CRITICAL', 'WARNING'] as const).map((sev) => (
             <button
               key={sev}
               onClick={() => setSeverityFilter(sev)}
@@ -144,8 +145,15 @@ export default function AlertsPage() {
       ) : filtered.length === 0 ? (
         <Card className="border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-400">
           <ShieldCheck className="h-12 w-12 mx-auto mb-3 text-emerald-500 stroke-1" />
-          <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">No active alerts matching criteria</h4>
-          <p className="text-xs text-slate-500 mt-1">Normal baseline traffic across Bangalore corridors.</p>
+          <h4 className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+            {alerts.length === 0 ? 'No congestion or incident alerts right now' : 'No alerts match these filters'}
+          </h4>
+          <p className="text-xs text-slate-500 mt-1">
+            {alerts.length === 0
+              ? 'Alerts appear when a road reaches HIGH or SEVERE congestion, or an incident is rated HIGH or CRITICAL.'
+              : 'Try another severity or clear "Unread Only".'}
+            {alerts.length === 0 && dataMode === 'demo' && ' Live data is unavailable, so this reflects demo data.'}
+          </p>
         </Card>
       ) : (
         <div className="space-y-3">

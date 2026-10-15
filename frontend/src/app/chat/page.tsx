@@ -35,6 +35,7 @@ function ChatInner() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef<string | null>(null); // ?prompt= fires once
 
   const handleSend = useCallback(
     async (messageText?: string) => {
@@ -120,10 +121,13 @@ function ChatInner() {
   useEffect(() => {
     if (!initialPrompt) return;
     const timer = setTimeout(() => {
+      // Unmarked while a request is active: this effect re-runs when isLoading clears.
+      if (autoSentRef.current === initialPrompt || isLoading) return;
+      autoSentRef.current = initialPrompt;
       handleSend(initialPrompt);
     }, 100);
     return () => clearTimeout(timer);
-  }, [initialPrompt, handleSend]);
+  }, [initialPrompt, handleSend, isLoading]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {

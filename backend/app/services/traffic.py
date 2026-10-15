@@ -8,14 +8,36 @@ realistic time-varying mock data for Bangalore (demo mode).
 import random
 import math
 import logging
-from datetime import datetime, timezone
+import threading
+from datetime import datetime, timedelta, timezone
 from typing import List, Tuple
-from cachetools import TTLCache, cached
+from cachetools import TTLCache
 
 from app.core.config import settings
 from app.models.schemas import TrafficSegment, CongestionLevel
 
 logger = logging.getLogger(__name__)
+
+IST = timezone(timedelta(hours=5, minutes=30))
+FALLBACK_CACHE_TTL = 20  # short TTL so live recovery is picked up quickly after an outage
+
+# TTLCache is not thread-safe and service calls run in worker threads (asyncio.to_thread)
+_cache_lock = threading.Lock()
+
+
+def cache_get(cache: TTLCache, key):
+    with _cache_lock:
+        return cache.get(key)
+
+
+def cache_set(cache: TTLCache, key, value) -> None:
+    with _cache_lock:
+        cache[key] = value
+
+
+def ist_hour(now: datetime) -> int:
+    """Hour of day in IST (UTC+5:30)."""
+    return now.astimezone(IST).hour
 
 
 # ── Congestion calculation ─────────────────────────────────────────────────
@@ -71,27 +93,35 @@ BANGALORE_SEGMENTS = [
 ]
 
 
-def _time_factor(hour: int) -> float:
-    """
-    Returns a multiplier 0–1 representing how congested Bangalore typically
-    is at a given hour.  Peak: 8-10 AM, 5-8 PM.
-    """
+def _time_band(hour: int) -> Tuple[float, float]:
+    """(base, jitter) congestion band for an hour. Peak: 8-10 AM, 5-8 PM."""
     if 8 <= hour <= 10:
-        return 0.85 + random.uniform(0, 0.15)   # morning rush
-    elif 17 <= hour <= 20:
-        return 0.80 + random.uniform(0, 0.20)   # evening rush
-    elif 12 <= hour <= 14:
-        return 0.45 + random.uniform(0, 0.15)   # lunch
-    elif 22 <= hour or hour <= 5:
-        return 0.05 + random.uniform(0, 0.10)   # night
-    else:
-        return 0.30 + random.uniform(0, 0.20)   # normal
+        return 0.85, 0.15   # morning rush
+    if 17 <= hour <= 20:
+        return 0.80, 0.20   # evening rush
+    if 12 <= hour <= 14:
+        return 0.45, 0.15   # lunch
+    if 22 <= hour or hour <= 5:
+        return 0.05, 0.10   # night
+    return 0.30, 0.20       # normal
+
+
+def _time_factor(hour: int) -> float:
+    """Multiplier 0–1 for how congested Bangalore typically is at a given hour."""
+    base, jitter = _time_band(hour)
+    return base + random.uniform(0, jitter)
+
+
+def expected_time_factor(hour: int) -> float:
+    """Mean of _time_factor for an hour (its random jitter averaged out)."""
+    base, jitter = _time_band(hour)
+    return base + jitter / 2
 
 
 def _generate_mock_segments() -> List[TrafficSegment]:
     """Generate time-varying traffic data for all Bangalore segments."""
     now = datetime.now(tz=timezone.utc)
-    hour = (now.hour + 5) % 24  # IST offset (UTC+5:30 approx)
+    hour = ist_hour(now)
     base_factor = _time_factor(hour)
     segments: List[TrafficSegment] = []
 
@@ -128,7 +158,14 @@ def _generate_mock_segments() -> List[TrafficSegment]:
 
 # ── Cache ──────────────────────────────────────────────────────────────────
 
-_traffic_cache: TTLCache = TTLCache(maxsize=1, ttl=settings.TRAFFIC_CACHE_TTL)
+_traffic_cache: TTLCache = TTLCache(maxsize=2, ttl=settings.TRAFFIC_CACHE_TTL)  # demo and live keys
+_traffic_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)  # demo data served after a live failure
+# partial live results as (segments, missing_names); short TTL so a stuck segment costs one round per window
+_traffic_partial_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)
+# missing road names from the latest get_current_traffic call on this thread (the call runs in a worker thread)
+_missing_state = threading.local()
+# Serialises live fetches so concurrent cold requests (dashboard loads traffic, alerts, predictions at once) share one TomTom round
+_live_fetch_lock = threading.Lock()
 
 
 class TrafficService:
@@ -136,34 +173,48 @@ class TrafficService:
 
     def get_current_traffic(self) -> Tuple[List[dict], str]:
         """Returns (list-of-segment-dicts, data_mode)."""
+        _missing_state.names = []
         if settings.TOMTOM_API_KEY:
             return self._fetch_live_traffic()
         return self._get_demo_traffic()
+
+    def get_last_missing(self) -> List[str]:
+        """Road names without live data in this thread's most recent get_current_traffic call."""
+        return list(getattr(_missing_state, "names", []))
 
     # -- demo -----------------------------------------------------------------
 
     def _get_demo_traffic(self) -> Tuple[List[dict], str]:
         cache_key = "demo_traffic"
-        cached = _traffic_cache.get(cache_key)
+        cached = cache_get(_traffic_cache, cache_key)
         if cached is not None:
             return cached
 
         segments = _generate_mock_segments()
         result = [s.model_dump(mode="json") for s in segments]
-        _traffic_cache[cache_key] = (result, "demo")
+        cache_set(_traffic_cache, cache_key, (result, "demo"))
         return result, "demo"
 
     # -- live (TomTom) --------------------------------------------------------
 
     def _fetch_live_traffic(self) -> Tuple[List[dict], str]:
-        """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors."""
+        with _live_fetch_lock:
+            return self._fetch_live_traffic_locked()
+
+    def _fetch_live_traffic_locked(self) -> Tuple[List[dict], str]:
+        """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors (caches re-checked under the lock)."""
         cache_key = "live_traffic"
-        cached = _traffic_cache.get(cache_key)
+        cached = cache_get(_traffic_cache, cache_key)
         if cached is not None:
             return cached
-
-        if not settings.TOMTOM_API_KEY:
-            return self._get_demo_traffic()
+        cached = cache_get(_traffic_fallback_cache, cache_key)
+        if cached is not None:
+            return cached
+        partial = cache_get(_traffic_partial_cache, cache_key)
+        if partial is not None:
+            result, missing = partial
+            _missing_state.names = missing
+            return result, "live"
 
         import httpx
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -171,7 +222,7 @@ class TrafficService:
         now = datetime.now(tz=timezone.utc)
         live_segments: List[TrafficSegment] = []
 
-        def _fetch_segment(seg: dict) -> TrafficSegment | None:
+        def _fetch_segment(client: httpx.Client, seg: dict) -> TrafficSegment | None:
             url = "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
             params = {
                 "point": f"{seg['lat']},{seg['lng']}",
@@ -179,55 +230,66 @@ class TrafficService:
                 "key": settings.TOMTOM_API_KEY,
             }
             try:
-                with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
-                    resp = client.get(url, params=params)
-                    if resp.status_code == 200:
-                        flow_data = resp.json().get("flowSegmentData", {})
-                        current_speed = float(flow_data.get("currentSpeed", seg["ffs"]))
-                        free_flow = float(flow_data.get("freeFlowSpeed", seg["ffs"]))
-                        confidence = float(flow_data.get("confidence", 0.95))
-                        delay = float(max(0, flow_data.get("currentTravelTime", 0) - flow_data.get("freeFlowTravelTime", 0)))
-                        congestion = calculate_congestion(current_speed, free_flow)
-                        level = get_congestion_level(congestion)
-                        return TrafficSegment(
-                            id=seg["id"],
-                            road_name=seg["road_name"],
-                            latitude=seg["lat"],
-                            longitude=seg["lng"],
-                            current_speed=round(current_speed, 1),
-                            free_flow_speed=round(free_flow, 1),
-                            congestion_ratio=round(congestion, 3),
-                            congestion_level=level,
-                            delay_seconds=round(delay, 0),
-                            confidence=round(confidence, 2),
-                            timestamp=now,
-                            source="live",
-                        )
-                    elif resp.status_code in (401, 403):
-                        logger.warning(
-                            "TomTom API authentication failed (HTTP %s). Check TOMTOM_API_KEY in backend/.env.",
-                            resp.status_code
-                        )
-                        return None
+                resp = client.get(url, params=params)
+                if resp.status_code == 200:
+                    flow_data = resp.json().get("flowSegmentData", {})
+                    current_speed = float(flow_data.get("currentSpeed", seg["ffs"]))
+                    free_flow = float(flow_data.get("freeFlowSpeed", seg["ffs"]))
+                    confidence = float(flow_data.get("confidence", 0.95))
+                    delay = float(max(0, flow_data.get("currentTravelTime", 0) - flow_data.get("freeFlowTravelTime", 0)))
+                    congestion = calculate_congestion(current_speed, free_flow)
+                    level = get_congestion_level(congestion)
+                    return TrafficSegment(
+                        id=seg["id"],
+                        road_name=seg["road_name"],
+                        latitude=seg["lat"],
+                        longitude=seg["lng"],
+                        current_speed=round(current_speed, 1),
+                        free_flow_speed=round(free_flow, 1),
+                        congestion_ratio=round(congestion, 3),
+                        congestion_level=level,
+                        delay_seconds=round(delay, 0),
+                        confidence=round(confidence, 2),
+                        timestamp=now,
+                        source="live",
+                    )
+                elif resp.status_code in (401, 403):
+                    logger.warning(
+                        "TomTom API authentication failed (HTTP %s). Check TOMTOM_API_KEY in backend/.env.",
+                        resp.status_code
+                    )
+                    return None
             except Exception as e:
-                logger.debug("Failed to fetch TomTom live segment for %s: %s", seg["road_name"], e)
+                logger.debug("Failed to fetch TomTom live segment for %s: %s", seg["road_name"], type(e).__name__)
             return None
 
         try:
-            with ThreadPoolExecutor(max_workers=5) as executor:
-                futures = [executor.submit(_fetch_segment, seg) for seg in BANGALORE_SEGMENTS]
-                for f in as_completed(futures):
-                    res = f.result()
-                    if res:
-                        live_segments.append(res)
+            # One client shared by all segment calls (httpx clients are thread-safe)
+            with httpx.Client(timeout=settings.API_TIMEOUT_SECONDS) as client:
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    futures = [executor.submit(_fetch_segment, client, seg) for seg in BANGALORE_SEGMENTS]
+                    for f in as_completed(futures):
+                        res = f.result()
+                        if res:
+                            live_segments.append(res)
 
             if live_segments:
                 id_map = {s.id: s for s in live_segments}
                 ordered_segments = [id_map[seg["id"]] for seg in BANGALORE_SEGMENTS if seg["id"] in id_map]
                 result = [s.model_dump(mode="json") for s in ordered_segments]
-                _traffic_cache[cache_key] = (result, "live")
+                missing = [seg["road_name"] for seg in BANGALORE_SEGMENTS if seg["id"] not in id_map]
+                if missing:
+                    # Partial result: returned as live, cached briefly so a stuck segment is not re-fetched on every request
+                    logger.warning("TomTom live traffic missing %d segments: %s", len(missing), ", ".join(missing))
+                    _missing_state.names = missing
+                    cache_set(_traffic_partial_cache, cache_key, (result, missing))
+                    return result, "live"
+                cache_set(_traffic_cache, cache_key, (result, "live"))
                 return result, "live"
         except Exception as e:
-            logger.error("Error fetching live TomTom traffic flow: %s", e)
+            logger.error("Error fetching live TomTom traffic flow: %s", type(e).__name__)
 
-        return self._get_demo_traffic()
+        # Short-lived demo fallback so an outage does not repeat 25 TomTom calls per request
+        fallback = self._get_demo_traffic()
+        cache_set(_traffic_fallback_cache, cache_key, fallback)
+        return fallback
