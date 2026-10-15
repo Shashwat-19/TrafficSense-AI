@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of strings."""
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Browsers send origins without a trailing slash, so "https://app.example.com/" would never match
+        return [o.strip().rstrip("/") for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     # ── Bangalore defaults ────────────────────────────────────────────────
     DEFAULT_LAT: float = 12.9716  # dev-only: Bangalore fallback coordinates for weather lookups
@@ -76,6 +77,8 @@ class Settings(BaseSettings):
             self.AWS_SECRET_ACCESS_KEY = self.AWS_SECRET_ACCESS_KEY.strip("<> '\"")
         if self.AWS_REGION:
             self.AWS_REGION = self.AWS_REGION.strip("<> '\"")
+
+        self.APP_ENV = self.APP_ENV.strip().lower()  # "Production" must still count as production
 
         # Production never serves debug behaviour, whatever DEBUG is set to
         if self.APP_ENV == "production":

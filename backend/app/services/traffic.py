@@ -93,21 +93,29 @@ BANGALORE_SEGMENTS = [
 ]
 
 
-def _time_factor(hour: int) -> float:
-    """
-    Returns a multiplier 0–1 representing how congested Bangalore typically
-    is at a given hour.  Peak: 8-10 AM, 5-8 PM.
-    """
+def _time_band(hour: int) -> Tuple[float, float]:
+    """(base, jitter) congestion band for an hour. Peak: 8-10 AM, 5-8 PM."""
     if 8 <= hour <= 10:
-        return 0.85 + random.uniform(0, 0.15)   # morning rush
-    elif 17 <= hour <= 20:
-        return 0.80 + random.uniform(0, 0.20)   # evening rush
-    elif 12 <= hour <= 14:
-        return 0.45 + random.uniform(0, 0.15)   # lunch
-    elif 22 <= hour or hour <= 5:
-        return 0.05 + random.uniform(0, 0.10)   # night
-    else:
-        return 0.30 + random.uniform(0, 0.20)   # normal
+        return 0.85, 0.15   # morning rush
+    if 17 <= hour <= 20:
+        return 0.80, 0.20   # evening rush
+    if 12 <= hour <= 14:
+        return 0.45, 0.15   # lunch
+    if 22 <= hour or hour <= 5:
+        return 0.05, 0.10   # night
+    return 0.30, 0.20       # normal
+
+
+def _time_factor(hour: int) -> float:
+    """Multiplier 0–1 for how congested Bangalore typically is at a given hour."""
+    base, jitter = _time_band(hour)
+    return base + random.uniform(0, jitter)
+
+
+def expected_time_factor(hour: int) -> float:
+    """Mean of _time_factor for an hour (its random jitter averaged out)."""
+    base, jitter = _time_band(hour)
+    return base + jitter / 2
 
 
 def _generate_mock_segments() -> List[TrafficSegment]:
@@ -156,6 +164,8 @@ _traffic_fallback_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL) 
 _traffic_partial_cache: TTLCache = TTLCache(maxsize=1, ttl=FALLBACK_CACHE_TTL)
 # missing road names from the latest get_current_traffic call on this thread (the call runs in a worker thread)
 _missing_state = threading.local()
+# Serialises live fetches so concurrent cold requests (dashboard loads traffic, alerts, predictions at once) share one TomTom round
+_live_fetch_lock = threading.Lock()
 
 
 class TrafficService:
@@ -188,7 +198,11 @@ class TrafficService:
     # -- live (TomTom) --------------------------------------------------------
 
     def _fetch_live_traffic(self) -> Tuple[List[dict], str]:
-        """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors."""
+        with _live_fetch_lock:
+            return self._fetch_live_traffic_locked()
+
+    def _fetch_live_traffic_locked(self) -> Tuple[List[dict], str]:
+        """Fetch live traffic data from TomTom Traffic Flow API for Bangalore corridors (caches re-checked under the lock)."""
         cache_key = "live_traffic"
         cached = cache_get(_traffic_cache, cache_key)
         if cached is not None:

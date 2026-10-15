@@ -5,6 +5,9 @@ Runs offline: TomTom calls are answered by httpx.MockTransport. One segment
 always fails, so every live result is partial.
 """
 
+import threading
+import time
+
 import httpx
 from cachetools import TTLCache
 from fastapi.testclient import TestClient
@@ -21,6 +24,7 @@ def _setup(monkeypatch):
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request.url.params["point"])
+        time.sleep(0.01)  # keep concurrent callers overlapping
         if request.url.params["point"] == FAILING_POINT:
             return httpx.Response(500)
         return httpx.Response(200, json={"flowSegmentData": {
@@ -67,3 +71,12 @@ def test_endpoint_warns_about_missing_segments(monkeypatch):
     assert body["data_mode"] == "live"
     assert body["warnings"] == [f"Missing live data for: {FAILING_ROAD}"]
     assert len(body["data"]) == len(traffic_mod.BANGALORE_SEGMENTS) - 1
+
+
+def test_concurrent_cold_requests_fetch_tomtom_once(monkeypatch):
+    calls = _setup(monkeypatch)
+    service = traffic_mod.TrafficService()
+    threads = [threading.Thread(target=service.get_current_traffic) for _ in range(4)]
+    [t.start() for t in threads]
+    [t.join() for t in threads]
+    assert len(calls) == len(traffic_mod.BANGALORE_SEGMENTS)
