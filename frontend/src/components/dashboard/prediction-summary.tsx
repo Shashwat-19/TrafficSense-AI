@@ -51,9 +51,8 @@ export function PredictionSummary({ predictions, isLoading }: PredictionSummaryP
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {predictions.slice(0, 3).map((pred) => {
-              const currentSpeed = pred.current_speed ?? 30;
-              const speedDiff = Math.round(pred.predicted_speed - currentSpeed);
-              const isDropping = speedDiff < 0;
+              const speedDiff = pred.current_speed == null ? null : Math.round(pred.predicted_speed - pred.current_speed);
+              const isDropping = speedDiff !== null && speedDiff < 0;
               const colorInfo = CONGESTION_COLORS[pred.predicted_level] || CONGESTION_COLORS.LOW;
 
               return (
@@ -84,8 +83,12 @@ export function PredictionSummary({ predictions, isLoading }: PredictionSummaryP
                     <div className="text-right">
                       <span className="text-[11px] text-slate-400 block">Delta</span>
                       <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${isDropping ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                        {isDropping ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                        {speedDiff > 0 ? `+${speedDiff}` : speedDiff} km/h
+                        {speedDiff === null ? 'n/a' : (
+                          <>
+                            {isDropping ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {speedDiff > 0 ? `+${speedDiff}` : speedDiff} km/h
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>
