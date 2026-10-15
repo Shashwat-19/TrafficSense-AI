@@ -363,7 +363,7 @@ docker-compose up --build
 ```
 * **Web Application**: [http://localhost:3000](http://localhost:3000)
 * **Interactive AI Assistant**: [http://localhost:3000/chat](http://localhost:3000/chat)
-* **FastAPI Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+* **Backend health check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (`/docs` is disabled because the compose file sets `APP_ENV=production`)
 
 ---
 
@@ -499,8 +499,8 @@ All responses conform to a unified standard envelope:
 | `POST` | `/api/v1/chat` | Send query to Bedrock AI Assistant | Body: `ChatRequest` (`message`, `conversation_id`) |
 | `DELETE` | `/api/v1/chat/{conversation_id}` | Reset context memory for a session | Path: `conversation_id` |
 
-* **Interactive Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-* **ReDoc Specification**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+* **Interactive Swagger UI** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc Specification** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
@@ -564,9 +564,10 @@ docker-compose up --build -d
 Packages the FastAPI backend and the Next.js production server (`next start`, not a static export) into a single image. `docker-entrypoint.sh` starts the backend, waits for its health endpoint, then starts the frontend. The containers run as a non-root user.
 ```bash
 docker build --build-arg NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key -t trafficsense-ai:latest .
+# Remote deployment: also add --build-arg NEXT_PUBLIC_API_URL=https://api.example.com (the URL the browser calls)
 docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:latest
 ```
-`NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles.
+`NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles. The command above is local-only: `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000`, so a browser on another machine would call its own localhost. For a remote deployment, pass `NEXT_PUBLIC_API_URL` as a build argument too.
 
 ### Docker environment variables
 
@@ -590,6 +591,7 @@ services:
       - APP_ENV=development
     volumes:
       - ./backend:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 ```
 
 Compose loads this file automatically with `docker-compose up`. Remove it for production-style runs.

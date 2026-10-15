@@ -14,19 +14,25 @@ BACKEND_PID=$!
 # Wait until the backend answers its health endpoint (max BACKEND_WAIT_TIMEOUT seconds)
 BACKEND_HEALTH_URL="${BACKEND_HEALTH_URL:-http://127.0.0.1:8000/api/v1/health}"
 BACKEND_WAIT_TIMEOUT="${BACKEND_WAIT_TIMEOUT:-30}"
-waited=0
-until curl -fsS "$BACKEND_HEALTH_URL" >/dev/null 2>&1; do
+start=$(date +%s)
+elapsed() { echo $(( $(date +%s) - start )); }
+# Each probe may use at most the remaining wait budget (min 1s), so a stalled response cannot overrun the limit.
+probe() {
+    left=$(( BACKEND_WAIT_TIMEOUT - $(elapsed) ))
+    [ "$left" -ge 1 ] || left=1
+    curl -fsS --max-time "$left" "$BACKEND_HEALTH_URL" >/dev/null 2>&1
+}
+until probe; do
     if ! kill -0 $BACKEND_PID 2>/dev/null; then
         echo "Backend exited during startup. Aborting."
         exit 1
     fi
-    if [ "$waited" -ge "$BACKEND_WAIT_TIMEOUT" ]; then
+    if [ "$(elapsed)" -ge "$BACKEND_WAIT_TIMEOUT" ]; then
         echo "Backend not healthy after ${BACKEND_WAIT_TIMEOUT}s. Aborting."
         kill -TERM $BACKEND_PID 2>/dev/null || true
         exit 1
     fi
     sleep 1
-    waited=$((waited + 1))
 done
 echo "Backend is healthy."
 

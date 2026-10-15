@@ -87,8 +87,9 @@ Running both services in two separate terminals enables full hot-reloading for r
 
 7. **Verify the backend:**
    - **Health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health)
-   - **Interactive API Docs (Swagger):** [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **ReDoc documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+   - **Interactive API Docs (Swagger, development only):** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **ReDoc documentation (development only):** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+   - `/docs` and `/redoc` return 404 when `APP_ENV=production`.
 
 ---
 
@@ -168,7 +169,7 @@ To launch both the backend and frontend simultaneously inside Docker containers:
 
 4. **Access the application:**
    - **Frontend App:** [http://localhost:3000](http://localhost:3000)
-   - **Backend API & Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **Backend health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (Swagger `/docs` is off because compose sets `APP_ENV=production`; see the development override in the README to enable it)
 
 5. **Stop containers:**
    ```bash
