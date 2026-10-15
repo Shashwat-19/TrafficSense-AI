@@ -291,7 +291,7 @@ def _exec_get_current_traffic(
     tool_input: dict, actions: list[dict]
 ) -> tuple[str, list[dict]]:
     data, mode = _traffic_service.get_current_traffic()
-    road_filter = tool_input.get("road_name", "").lower()
+    road_filter = (tool_input.get("road_name") or "").lower()
 
     if road_filter:
         data = [

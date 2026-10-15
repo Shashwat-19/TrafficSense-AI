@@ -293,8 +293,9 @@ class ChatbotService:
                         sources.append(tool_name)
 
                         # Execute the tool
-                        result_text, tool_actions = execute_tool(
-                            tool_name, tool_input
+                        # Tools make blocking HTTP calls; keep them off the event loop
+                        result_text, tool_actions = await asyncio.to_thread(
+                            execute_tool, tool_name, tool_input
                         )
                         actions.extend(tool_actions)
 
