@@ -282,24 +282,47 @@ The assistant uses **AWS Bedrock** with **Amazon Nova Lite** (`amazon.nova-lite-
 
 ### Tool Execution Flow
 
+```mermaid
+flowchart TD
+    %% Styling Definitions
+    classDef entry fill:#e0e7ff,stroke:#4338ca,stroke-width:2px,color:#1e1b4b
+    classDef model fill:#fae8ff,stroke:#a21caf,stroke-width:2px,color:#701a75
+    classDef tool fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0c4a6e
+    classDef store fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f
+    classDef done fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#14532d
+    classDef fail fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+
+    USER(["User query<br/>'What is traffic like on Outer Ring Road<br/>and will it get worse in 30 minutes?'"]):::entry
+    API["POST /api/v1/chat<br/>ChatbotService.chat()"]:::entry
+    LOCK["Per-conversation lock<br/>(turns run one at a time)"]:::entry
+    HIST["Append user message<br/>to ConversationStore"]:::store
+    CONVERSE["Bedrock Converse API<br/>amazon.nova-lite-v1:0<br/>(system prompt + 7 tool specs)"]:::model
+    STOP{"stopReason<br/>== tool_use?"}:::model
+    ROUNDS{"Rounds used<br/>&lt; 5?"}:::model
+    EXEC["execute_tool(name, input)<br/>run off the event loop"]:::tool
+    TOOLS["Domain services<br/>get_current_traffic → TrafficService<br/>get_traffic_prediction → PredictionService"]:::tool
+    RESULT["Append toolResult to messages<br/>and ConversationStore"]:::store
+    FINAL["Strip &lt;thinking&gt; blocks<br/>and collect text"]:::model
+    SAVE["Store assistant reply<br/>in ConversationStore"]:::store
+    RESP(["JSON response:<br/>response, tools_used, sources, actions"]):::done
+    TIMEOUT["Timeout error reply<br/>(CHATBOT_REQUEST_TIMEOUT = 30 s)"]:::fail
+    LIMIT["'Too many steps' reply"]:::fail
+    ERR["Error reply<br/>(throttling, access, credentials, network)"]:::fail
+
+    USER --> API --> LOCK --> HIST --> CONVERSE
+    CONVERSE --> STOP
+    STOP -- "No: final text" --> FINAL --> SAVE --> RESP
+    STOP -- "Yes: toolUse blocks" --> EXEC
+    EXEC <--> TOOLS
+    EXEC --> RESULT --> ROUNDS
+    ROUNDS -- "Yes: send results back" --> CONVERSE
+    ROUNDS -- "No" --> LIMIT --> SAVE
+
+    CONVERSE -. "timeout" .-> TIMEOUT --> SAVE
+    CONVERSE -. "Bedrock or network error" .-> ERR --> SAVE
 ```
-User query: "What is traffic like on Outer Ring Road and will it get worse in 30 minutes?"
-   │
-   ▼
-POST /api/v1/chat ──► ChatbotService ──► Bedrock Converse API
-                                            │
-                              ┌─────────────┴─────────────┐
-                              ▼                           ▼
-                     Tool: get_current_traffic   Tool: get_traffic_prediction
-                     (road: "Outer Ring Road")    (horizon: 30, road: "Outer Ring Road")
-                              │                           │
-                              └─────────────┬─────────────┘
-                                            ▼
-                           Model synthesizes live telemetry and forecast
-                                            │
-                                            ▼
-            Response and UI actions (e.g. FOCUS_MAP with lat/lng) returned to the chat UI
-```
+
+**Example:** for the query above, the model requests `get_current_traffic` and `get_traffic_prediction` in the same round. Both run, their results return to the model, and it writes the final answer. The reply can also include UI actions, such as `FOCUS_MAP` with latitude and longitude, which the chat page uses for its action buttons.
 
 ### Available Domain Tools
 
