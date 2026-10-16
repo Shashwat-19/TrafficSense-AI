@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT">
-  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/Python-3.12-3776AB.svg?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12">
   <img src="https://img.shields.io/badge/Backend-FastAPI-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/Frontend-Next.js%2016-000000.svg?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js 16">
   <img src="https://img.shields.io/badge/React-19-61DAFB.svg?style=for-the-badge&logo=react&logoColor=black" alt="React 19">
@@ -10,22 +10,22 @@
   <img src="https://img.shields.io/badge/ML-XGBoost-orange.svg?style=for-the-badge" alt="ML: XGBoost">
   <img src="https://img.shields.io/badge/Map-Leaflet.js-199900.svg?style=for-the-badge&logo=leaflet&logoColor=white" alt="Map: Leaflet">
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
-  <img src="https://img.shields.io/badge/Tests-22%2F22%20Passing-brightgreen.svg?style=for-the-badge" alt="Tests: 22/22 Passing">
+  <img src="https://img.shields.io/badge/Backend%20Tests-77%20Passing-brightgreen.svg?style=for-the-badge" alt="Backend Tests: 77 Passing">
 </p>
 
 <p align="center">
-  <strong>Intelligent Urban Mobility Monitoring, ML Speed Forecasting, and Conversational Operations Platform for Bangalore, India.</strong>
+  <strong>Urban traffic monitoring, machine learning speed forecasting, and a conversational operations assistant for Bangalore, India.</strong>
 </p>
 
 <p align="center">
   <a href="#quickstart">Quickstart</a> •
   <a href="#key-features">Features</a> •
   <a href="#architecture">Architecture</a> •
-  <a href="#enterprise-saas-frontend">Frontend UI</a> •
+  <a href="#frontend">Frontend</a> •
   <a href="#ai-assistant--bedrock-integration">AI Assistant</a> •
   <a href="#ai--ml-pipeline">ML Pipeline</a> •
   <a href="#api-reference">API Reference</a> •
-  <a href="#testing">Testing</a> •
+  <a href="#testing--quality-assurance">Testing</a> •
   <a href="#deployment">Deployment</a>
 </p>
 
@@ -33,46 +33,47 @@
 
 ## Overview
 
-**TrafficSense.AI** is a production-grade urban traffic intelligence platform calibrated specifically for the complex arterial network of **Bangalore, India**. It combines geospatial telemetry across 25 major traffic corridors, localized weather signals, machine learning speed forecasts (XGBoost), an enterprise SaaS analytics dashboard, and a **native conversational AI assistant powered by AWS Bedrock** that autonomously interacts with backend domain services via tool calling.
+**TrafficSense.AI** is an urban traffic intelligence platform for the arterial road network of **Bangalore, India**. It combines traffic telemetry across 25 monitored corridors, local weather signals, XGBoost speed forecasts, an analytics dashboard, and a **conversational assistant powered by AWS Bedrock** that answers operator questions by calling backend domain services as tools.
 
-Whether operating with live external telemetry (TomTom Traffic API and OpenWeather) or in zero-configuration simulated mode (`DEMO`), TrafficSense.AI provides actionable, real-time insights to traffic operators, urban planners, and commuters.
+The platform runs against live external data (TomTom Traffic API and OpenWeather) or in a self-contained simulated mode (`DEMO`) that requires no API credentials. Both modes serve traffic operators, urban planners, and commuters.
 
 ---
 
 ## Problem & Solution
 
 ### The Challenge
-Bangalore consistently ranks among the most congested metropolitan areas globally. Choke points such as Central Silk Board, KR Puram, Tin Factory, Hebbal Flyover, and the Outer Ring Road tech corridor experience severe, volatile transit delays. Existing navigation systems present critical shortcomings:
-1. **Fragmented Intelligence**: Congestion data, meteorological conditions, active road hazards, and routing are rarely synthesized in a unified command center.
-2. **Lagging Indicators**: Conventional navigation tools report what traffic is right now—failing to offer short-horizon forecasts (15, 30, and 60 minutes ahead) necessary to evade congestion prior to trip departure.
-3. **Fragile Dependencies**: Many platforms fail completely when external rate limits or API subscriptions expire, lacking graceful offline simulation fallbacks.
+Bangalore is among the most congested metropolitan areas in the world. Corridors such as Central Silk Board, KR Puram, Tin Factory, Hebbal Flyover, and the Outer Ring Road technology corridor experience severe and volatile delays. Common navigation tools have three shortcomings:
 
-### The TrafficSense.AI Solution
-* **Hybrid Ingestion Architecture**: Seamlessly toggles between live external APIs (TomTom and OpenWeather) and a deterministic, time-varying Bangalore diurnal simulation engine (`DEMO` mode) calibrated against authentic morning and evening rush-hour patterns.
-* **XGBoost ML Forecasting**: Spatio-temporal regression models predict corridor velocity and congestion ratios up to 60 minutes into the future with horizon-aware confidence estimation.
-* **Congestion-Aware Routing Engine**: Evaluates alternative corridors between prominent Bangalore hubs, scoring paths with dynamic congestion penalties.
-* **Conversational Agent (AWS Bedrock)**: Employs Amazon Nova Lite with dynamic tool calling to answer complex multi-turn inquiries regarding corridor speeds, predictions, incidents, and optimal transit routes.
-* **Enterprise Modern SaaS Frontend**: A redesigned, high-performance web interface built on Next.js 16 (Turbopack), React 19, Tailwind CSS, Leaflet, and Recharts with global spotlight search (`⌘K`).
+1. **Fragmented information:** Congestion data, weather, road hazards, and routing are rarely available in a single operational view.
+2. **Reactive indicators:** Most tools describe current conditions but offer little short-horizon forecasting (15, 30, and 60 minutes ahead) to help users avoid congestion before departure.
+3. **Fragile dependencies:** Many platforms become unavailable when external API quotas or subscriptions lapse, with no graceful fallback.
+
+### The TrafficSense.AI Approach
+* **Hybrid data ingestion:** Switches between live external APIs (TomTom and OpenWeather) and a deterministic, time-varying Bangalore simulation (`DEMO` mode) calibrated to morning and evening peak patterns. Live failures fall back to demo data automatically.
+* **XGBoost forecasting:** Regression models predict corridor speed and congestion ratio up to 60 minutes ahead.
+* **Congestion-aware routing:** Evaluates alternative corridors between major Bangalore hubs and scores them with congestion penalties.
+* **Conversational assistant (AWS Bedrock):** Uses Amazon Nova Lite with tool calling to answer multi-turn questions about speeds, forecasts, incidents, and routes.
+* **Modern web frontend:** Built on Next.js 16 (Turbopack), React 19, Tailwind CSS, Leaflet, and Recharts, with keyboard-driven navigation (`⌘K`).
 
 ---
 
 ## Key Features
 
-* **25 Monitored Bangalore Arterial Corridors**: Real-time speeds, baseline free-flow metrics, and delays covering Outer Ring Road, Silk Board, Whitefield, Electronic City Flyover, Indiranagar 100ft Rd, MG Road, Hebbal, KR Puram, and Sarjapur Road.
-* **Normalized Congestion Index**: Standardized, clamped ratio mapping corridor strain:
+* **25 monitored Bangalore corridors:** Real-time speeds, free-flow baselines, and delays for corridors including Outer Ring Road, Silk Board, Whitefield, Electronic City Flyover, Indiranagar 100ft Road, MG Road, Hebbal, KR Puram, and Sarjapur Road.
+* **Normalized congestion index:** A clamped ratio that describes how far current speed falls below free-flow speed:
   $$\text{congestion\_ratio} = \text{clamp}\left(1 - \frac{v_{\text{current}}}{v_{\text{free\_flow}}},\, 0,\, 1\right)$$
-  Classified into 4 semantic tiers:
-  * 🟢 **Free Flow (`LOW`)**: $< 0.25$
-  * 🟡 **Moderate (`MODERATE`)**: $0.25 - 0.49$
-  * 🟠 **Heavy (`HIGH`)**: $0.50 - 0.74$
-  * 🔴 **Severe (`SEVERE`)**: $\ge 0.75$
-* **Multi-Horizon ML Forecasting**: Segment speed and congestion predictions across 15m, 30m, and 60m horizons.
-* **Conversational AI Traffic Operator**: Natural-language operational assistant powered by AWS Bedrock (`amazon.nova-lite-v1:0`) with 7 backend tools and multi-turn context memory.
-* **Interactive Full-Screen Map**: Leaflet.js geospatial visualizer with color-coded vector polylines, layer toggles (flow, incidents, roadwork, closures, CCTV), and instant inspection drawers.
-* **Advanced Analytics Suite**: Visual breakdown of citywide congestion distributions, 24-hour speed vs. congestion dual-axis charts, bottleneck rankings, and instant CSV export.
-* **Active Incident & Hazard Management**: Filterable directory of accidents, construction, and road closures with lane blockage details and clearance estimates.
-* **Smart Route Comparison**: Origin-to-destination pathfinding with landmark presets, congestion avoidance toggles, and turn-by-turn navigation previews.
-* **Real-Time Notification Feed**: Priority alerts for sudden congestion spikes, hazardous weather conditions, and critical traffic blockades.
+  The ratio is classified into four tiers:
+  * **Free flow (`LOW`):** below 0.25
+  * **Moderate (`MODERATE`):** 0.25 to 0.49
+  * **Heavy (`HIGH`):** 0.50 to 0.74
+  * **Severe (`SEVERE`):** 0.75 and above
+* **Multi-horizon ML forecasts:** Segment speed and congestion predictions for 15, 30, and 60 minutes ahead.
+* **Conversational traffic assistant:** Natural-language operations assistant backed by AWS Bedrock (`amazon.nova-lite-v1:0`), with seven backend tools and multi-turn context.
+* **Interactive map:** Leaflet-based geospatial view with color-coded corridor polylines, layer toggles (flow, incidents, roadworks, closures, CCTV), and a road detail drawer.
+* **Analytics suite:** Citywide congestion distribution, 24-hour speed versus congestion trends, bottleneck rankings, and CSV export.
+* **Incident management:** Filterable records of accidents, construction, and road closures, including lane blockage details and estimated clearance times.
+* **Route comparison:** Origin-to-destination pathfinding with landmark presets, congestion avoidance, and turn-by-turn previews.
+* **Alerts feed:** Notifications for sudden congestion spikes, hazardous weather, and critical road blockages.
 
 ---
 
@@ -89,73 +90,113 @@ flowchart TB
     classDef external fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
 
     subgraph Tier1["1. PRESENTATION LAYER (Next.js 16 • React 19)"]
-        UI_DASH["Executive Dashboard\n(/)"]:::client
-        UI_MAP["Geospatial Traffic Map\n(/map)"]:::client
-        UI_ANL["Analytics & Trends\n(/analytics)"]:::client
-        UI_ROU["Smart Route Planner\n(/routes)"]:::client
-        UI_CHAT["AI Assistant Console\n(/chat)"]:::client
+        UI_DASH["Dashboard\n(/)"]:::client
+        UI_MAP["Traffic Map\n(/map)"]:::client
+        UI_ANL["Analytics\n(/analytics)"]:::client
+        UI_PRED["AI Forecasts\n(/predictions)"]:::client
+        UI_ROU["Route Planner\n(/routes)"]:::client
+        UI_CHAT["AI Assistant\n(/chat)"]:::client
         UI_OPS["Incidents & Alerts\n(/incidents • /alerts)"]:::client
     end
 
     subgraph Tier2["2. API GATEWAY & ORCHESTRATION (FastAPI)"]
         GATEWAY["API Router & Endpoints\n(/api/v1/*)"]:::gateway
-        MIDDLEWARE["Middleware & Infrastructure\n(JSON Structured Logging • CORS • Security)"]:::gateway
-        CACHE["In-Memory TTL Caching Engine\n(Traffic: 120s • Weather: 300s • Forecasts: 300s)"]:::gateway
+        MIDDLEWARE["Middleware & Infrastructure\n(Request Logging • Error Handling • CORS)"]:::gateway
+        CACHE["In-Memory TTL Caching\n(Traffic: 120s • Weather: 300s • Predictions: 300s • Analytics: 180s)"]:::gateway
     end
 
     subgraph Tier3["3. APPLICATION & DOMAIN SERVICES"]
         SVC_TRAFFIC["Traffic Service\n(25 Bangalore Corridors)"]:::service
-        SVC_ROUTE["Route Engine\n(Congestion Delay Scoring)"]:::service
-        SVC_INCIDENT["Incident & Alert Service\n(Hazard Classification)"]:::service
-        SVC_ANALYTICS["Analytics Service\n(City Bottlenecks & Patterns)"]:::service
+        SVC_ROUTE["Route Service\n(Congestion Delay Scoring)"]:::service
+        SVC_INCIDENT["Incident & Alert Services\n(Hazard Classification)"]:::service
+        SVC_ANALYTICS["Analytics Service\n(Bottlenecks & Patterns)"]:::service
         SVC_WEATHER["Weather Service\n(Precipitation & Road Signals)"]:::service
-        SVC_CHAT["Chatbot Agent Service\n(Context Store • Tool Dispatcher)"]:::ai
+        SVC_USER["User Service\n(Preferences & Saved Locations)"]:::service
+        SVC_CHAT["Chatbot Service\n(Conversation Store • Tool Dispatcher)"]:::ai
     end
 
     subgraph Tier4["4. MACHINE LEARNING & FOUNDATION AI"]
-        ML_MODEL["XGBoost Regressor Engine\n(xgb_speed_model.pkl)"]:::ai
-        ML_PIPELINE["Spatio-Temporal Pipeline\n(Lag Speeds • Congestion Index • Horizons)"]:::ai
-        AWS_BEDROCK["AWS Bedrock Runtime\n(Amazon Nova Lite • Tool Converse API)"]:::external
+        ML_MODEL["XGBoost Regressor\n(xgb_speed_model.pkl)"]:::ai
+        ML_PIPELINE["Spatio-Temporal Features\n(Lag Speeds • Congestion Index • Horizons)"]:::ai
+        AWS_BEDROCK["AWS Bedrock Runtime\n(Amazon Nova Lite • Converse API)"]:::external
     end
 
     subgraph Tier5["5. INGESTION & TELEMETRY SOURCES"]
-        SRC_SIM["Bangalore Diurnal Engine\n(Deterministic Commute Simulation)"]:::data
-        SRC_TOMTOM["TomTom Traffic API\n(Live Speed & Incident Telemetry)"]:::external
-        SRC_WEATHER["OpenWeather API\n(Microclimate Observations)"]:::external
+        SRC_SIM["Bangalore Diurnal Simulator\n(Deterministic Demo Data)"]:::data
+        SRC_TOMTOM["TomTom Traffic API\n(Live Speed & Incident Data)"]:::external
+        SRC_WEATHER["OpenWeather API\n(Live Weather Observations)"]:::external
     end
 
-    %% Client Communication
-    Tier1 ==>|"HTTPS / JSON REST Queries"| GATEWAY
+    %% Client communication
+    Tier1 ==>|"HTTPS / JSON"| GATEWAY
     GATEWAY --- MIDDLEWARE
     GATEWAY --- CACHE
 
-    %% Gateway to Domain Services
+    %% Gateway to domain services
     GATEWAY --> SVC_TRAFFIC
     GATEWAY --> SVC_ROUTE
     GATEWAY --> SVC_INCIDENT
     GATEWAY --> SVC_ANALYTICS
     GATEWAY --> SVC_WEATHER
+    GATEWAY --> SVC_USER
     GATEWAY --> SVC_CHAT
 
-    %% Domain Services to ML Pipeline
+    %% Domain services to ML pipeline
     SVC_TRAFFIC --> ML_PIPELINE
     SVC_WEATHER --> ML_PIPELINE
     ML_PIPELINE --> ML_MODEL
     ML_MODEL -->|"Multi-Horizon Speed Forecasts"| SVC_TRAFFIC
 
-    %% Conversational AI Tool Loop
+    %% Conversational AI tool loop
     SVC_CHAT <==>|"Dynamic Tool Calling"| AWS_BEDROCK
-    SVC_CHAT -.->|"1. Telemetry Query"| SVC_TRAFFIC
-    SVC_CHAT -.->|"2. Hazard Lookup"| SVC_INCIDENT
-    SVC_CHAT -.->|"3. Route Pathfinder"| SVC_ROUTE
+    SVC_CHAT -.->|"1. Traffic Query"| SVC_TRAFFIC
+    SVC_CHAT -.->|"2. Incident Lookup"| SVC_INCIDENT
+    SVC_CHAT -.->|"3. Route Search"| SVC_ROUTE
     SVC_CHAT -.->|"4. ML Forecasts"| ML_MODEL
 
-    %% Telemetry Ingestion Flow
-    SRC_SIM -->|"Demo Mode Fallback"| SVC_TRAFFIC
+    %% Telemetry ingestion
+    SRC_SIM -->|"Demo Mode & Live Fallback"| SVC_TRAFFIC
     SRC_SIM -->|"Demo Weather"| SVC_WEATHER
     SRC_TOMTOM -->|"Live Traffic Flow"| SVC_TRAFFIC
     SRC_TOMTOM -->|"Live Incidents"| SVC_INCIDENT
     SRC_WEATHER -->|"Live Ambient Data"| SVC_WEATHER
+```
+
+### Deployment Topology
+
+The same codebase runs in three configurations. In every configuration the browser talks to a single origin, and requests under `/api/v1` reach the FastAPI backend.
+
+```mermaid
+flowchart LR
+    Browser["Browser"]
+
+    subgraph Vercel["Vercel (vercel.json: services)"]
+        Rewrite["Routing\n/api/* → backend\n/* → frontend"]
+        FE_V["Next.js frontend\n(frontend/)"]
+        BE_V["FastAPI backend\n(backend/, app.main:app)"]
+    end
+
+    subgraph Compose["Docker Compose (docker-compose.yml)"]
+        FE_C["frontend container\n:3000"]
+        BE_C["backend container\n:8000"]
+    end
+
+    subgraph Unified["Unified container (Dockerfile)"]
+        ENTRY["docker-entrypoint.sh\n(process supervisor)"]
+        FE_U["Next.js server :3000"]
+        BE_U["Uvicorn :8000"]
+    end
+
+    Browser --> Rewrite
+    Rewrite --> FE_V
+    Rewrite --> BE_V
+    Browser --> FE_C
+    Browser --> BE_C
+    FE_C -. "NEXT_PUBLIC_API_URL" .-> BE_C
+    Browser --> FE_U
+    ENTRY --> FE_U
+    ENTRY --> BE_U
+    FE_U -. "/api/v1 proxy (BACKEND_URL)" .-> BE_U
 ```
 
 ### End-to-End Request & Inference Lifecycle
@@ -164,144 +205,156 @@ flowchart TB
 sequenceDiagram
     autonumber
     actor Operator as Operator / Commuter
-    participant UI as Next.js 16 UI
+    participant UI as Next.js Frontend
     participant Gateway as FastAPI Router
-    participant Cache as TTL Cache Engine
+    participant Cache as TTL Cache
     participant Service as Domain Services
-    participant ML as XGBoost / Bedrock AI
+    participant ML as XGBoost / Bedrock
     participant Telemetry as Telemetry / Simulator
 
-    Operator->>UI: Request Traffic Forecast / Route
+    Operator->>UI: Request traffic forecast or route
     UI->>Gateway: GET /api/v1/predictions?horizon=30
-    Gateway->>Cache: Check Cached Result
-    alt Cache Hit (Valid TTL)
-        Cache-->>Gateway: Return Cached Payload (<10ms)
-    else Cache Miss
+    Gateway->>Cache: Look up cached result
+    alt Cache hit (within TTL)
+        Cache-->>Gateway: Return cached payload
+    else Cache miss
         Gateway->>Service: Invoke PredictionService
-        Service->>Telemetry: Pull Current Speed & Weather Signals
-        Telemetry-->>Service: Segment Telemetry Data
-        Service->>ML: Vectorize Features & Run XGBoost Inference
-        ML-->>Service: Predicted Speed & Confidence Interval
-        Service->>Cache: Store Result in TTL Cache
-        Service-->>Gateway: Formatted Response Envelope
+        Service->>Telemetry: Fetch current speed and weather signals
+        Telemetry-->>Service: Segment telemetry
+        Service->>ML: Build features and run XGBoost inference
+        ML-->>Service: Predicted speed and confidence
+        Service->>Cache: Store result with TTL
+        Service-->>Gateway: Response envelope
     end
-    Gateway-->>UI: JSON Payload (data_mode: live/demo)
-    UI-->>Operator: Render High-Contrast Chart & Map Overlay
+    Gateway-->>UI: JSON payload (data_mode: live or demo)
+    UI-->>Operator: Render charts and map overlays
 ```
+
+### Caching & Fallback Behavior
+
+* **Per-resource TTL caches** (`cachetools`) are configured in `backend/app/core/config.py`: traffic 120 s, weather 300 s, predictions 300 s, and analytics 180 s.
+* **Serialized live fetches:** Concurrent cold requests (the dashboard loads traffic, alerts, and predictions at once) share a single TomTom fetch round through a lock, instead of issuing duplicate upstream calls.
+* **Partial live results:** When some corridors return no live data, the service reports the missing segments by name rather than failing the whole response. Those segments are cached with a short TTL so a stuck segment costs one upstream round per window.
+* **Demo fallback:** If a live fetch fails, demo data is served from a short-lived fallback cache (20 s), so recovery to live data is picked up quickly once the upstream service is available again.
 
 ### Architectural Tier Breakdown
 
-| Tier | Component | Primary Responsibility | SLA / Latency |
+| Tier | Component | Primary Responsibility | Latency Target |
 |---|---|---|---|
-| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Responsive dashboard, full-screen Leaflet traffic map, Recharts trends, route comparison, and conversational operator console (`/chat`). | Server-rendered Next.js app (`next start`, not a static export) |
-| **2. Gateway** | FastAPI + Starlette + Middleware | Route dispatch, strict Pydantic v2 validation, CORS authorization, structured JSON access logging, and in-memory TTL caching. | `< 5ms` overhead |
-| **3. Domain Services** | Python 3.11 Microservices | Core business logic for traffic corridor normalization, route delay penalties, incident tracking, and Bedrock tool dispatching. | `< 15ms` execution |
-| **4. AI / ML** | XGBoost Regressor + AWS Bedrock | 9-feature spatio-temporal speed forecasts (15/30/60m) and multi-turn conversational AI reasoning via Amazon Nova Lite. | ML: `< 20ms` • Bedrock: `~600–1200ms` |
-| **5. Ingestion** | TomTom API + OpenWeather + Diurnal Engine | Hybrid telemetry acquisition with automatic zero-credential fallback simulation calibrated for Bangalore traffic peaks. | Scheduled polling + 120s TTL |
+| **1. Presentation** | Next.js 16 (App Router) + React 19 + Tailwind CSS | Dashboard, interactive map, charts, route planner, and assistant console. Served by `next start`; not a static export. | Server-rendered |
+| **2. Gateway** | FastAPI + Starlette + middleware | Route dispatch, Pydantic v2 validation, CORS, structured request logging, global error handling, and TTL caching. | Under 5 ms overhead |
+| **3. Domain services** | Python 3.12 services | Corridor normalization, route delay scoring, incident tracking, user preferences, and Bedrock tool dispatch. | Under 15 ms |
+| **4. AI / ML** | XGBoost regressor + AWS Bedrock | Nine-feature spatio-temporal speed forecasts (15, 30, and 60 minutes) and multi-turn reasoning with Amazon Nova Lite. | ML: under 20 ms; Bedrock: roughly 600–1200 ms |
+| **5. Ingestion** | TomTom API + OpenWeather + diurnal simulator | Live telemetry with automatic fallback to simulated data when credentials are absent or the upstream fails. | Polling with TTL caching |
 
 ---
 
-## Enterprise SaaS Frontend
+## Frontend
 
-The user interface has been engineered following modern high-performance design specifications (clean Auralis-inspired aesthetic), optimized for desktop workstations, tablets, and field devices.
+The frontend is a Next.js 16 application using the App Router, with a design system based on rounded cards (`rounded-2xl`), subtle borders, soft shadows, and an indigo brand accent (`oklch(0.38 0.16 262)` / `#2563eb`). It is designed for desktop workstations, tablets, and field devices.
 
 ### Core Frontend Architecture
-* **Framework**: Next.js 16.3.5 (App Router with Turbopack) & React 19.
-* **Component Design**: Modular architecture with 16px rounded cards (`rounded-2xl`), subtle borders, soft shadows, and deep indigo brand accents (`oklch(0.38 0.16 262)` / `#2563eb`).
-* **Global Command Menu (`⌘K`)**: Instant keyboard-driven spotlight search for switching between pages and zooming directly to specific Bangalore corridors.
-* **Responsive Shell**: Collapsible sidebar navigation, dynamic breadcrumbs, live telemetry indicators, and system health status.
+* **Framework:** Next.js 16.3 (App Router with Turbopack) and React 19.
+* **Global command menu (`⌘K`):** Keyboard-driven search for moving between pages and zooming to specific corridors.
+* **Responsive shell:** Collapsible sidebar, breadcrumbs, live telemetry indicators, and system health status.
+* **API access:** A typed client in `frontend/src/lib/api/client.ts` calls `/api/v1` with relative paths. Next.js rewrites those requests to the backend in local and Docker deployments, and Vercel routes them directly.
+* **Map tiles:** TomTom map tiles when `NEXT_PUBLIC_TOMTOM_API_KEY` is set; OpenStreetMap tiles otherwise (`frontend/src/lib/map-config.ts`).
 
 ### Views & Capabilities
 
-| Route | View | Description & Components |
+| Route | View | Description |
 |---|---|---|
-| `/` | **Dashboard** | Executive operational overview: 4 KPI metric cards, interactive Leaflet mini-map, top congested corridors, 24h speed vs congestion trend chart, ML prediction cards, and localized weather advisory. |
-| `/map` | **Traffic Map** | Full-screen interactive geospatial workspace: floating control bar, corridor search, congestion filter, layer toggles (flow polylines, incidents, roadwork, closures, CCTV), and road detail inspection drawer. |
-| `/analytics` | **Analytics & Trends** | 5 Recharts visualizations: Congestion level distribution (donut), 24h hourly speed vs congestion dual-axis, top 5 bottleneck rankings, current vs free-flow speed delta, incident classification, and CSV export. |
-| `/predictions` | **AI Forecasts** | Short-term ML forecasting: 15m, 30m, and 60m horizon tabs, corridor filters, prediction cards with speed deltas and confidence ratings, speed projection timeline, and XGBoost model architecture breakdown. |
-| `/routes` | **Smart Route Planner** | Congestion-aware pathfinding: origin/destination inputs, quick-swap, Bangalore landmark presets, alternative routes comparison (fastest, balanced, distance), Leaflet route polylines, and turn-by-turn navigation preview. |
-| `/incidents` | **Incident Management** | Incident response feed: summary KPI counters, severity filters (Critical, High, Medium, Low), incident type filtering, verified badges, affected lanes, estimated clearance duration, and deep links. |
-| `/alerts` | **Alerts Feed** | Real-time traffic alerts: unread counter badge, severity filtering, individual mark read/unread toggles, batch "Mark All as Read", and quick navigation actions. |
-| `/chat` | **AI Traffic Assistant** | Conversational operator console: suggested prompt pills, multi-turn dialogue, tool execution status badges, markdown message bubbles, and contextual action buttons ("View on Map", "Check Predictions", "Find Route"). |
-| `/settings` | **Preferences & Health** | Operator profile settings, corridor notification toggles connected to `PUT /api/v1/users/preferences`, map default controls, saved locations manager, and live backend/ML health diagnostics. |
+| `/` | **Dashboard** | Operational overview with four KPI cards, a mini map, top congested corridors, a 24-hour speed and congestion trend, forecast summaries, and a weather advisory. |
+| `/map` | **Traffic Map** | Full-screen geospatial view with a floating control bar, corridor search, congestion filter, layer toggles (flow, incidents, roadworks, closures, CCTV), and a road detail drawer. |
+| `/analytics` | **Analytics & Trends** | Five charts: congestion distribution, 24-hour speed versus congestion, top bottleneck rankings, current versus free-flow speed, and incident classification, with CSV export. |
+| `/predictions` | **AI Forecasts** | Forecasts for 15, 30, and 60 minutes, with corridor filters, speed deltas, confidence ratings, a projection timeline, and an overview of the XGBoost model. |
+| `/routes` | **Route Planner** | Congestion-aware route search with origin and destination inputs, quick swap, landmark presets, fastest, balanced, and shortest alternatives, route polylines, and a turn-by-turn preview. |
+| `/incidents` | **Incident Management** | Incident feed with summary counters, severity and type filters, verification status, affected lanes, estimated clearance time, and deep links to the map. |
+| `/alerts` | **Alerts Feed** | Traffic alerts with an unread counter, severity filters, read and unread toggles, bulk "Mark all as read", and quick navigation actions. |
+| `/chat` | **AI Traffic Assistant** | Conversational console with suggested prompts, multi-turn dialogue, tool execution status, Markdown responses, and action buttons ("View on Map", "Check Predictions", "Find Route"). |
+| `/settings` | **Preferences & Health** | Operator preferences, corridor notification toggles (`PUT /api/v1/users/preferences`), map defaults, saved locations, and live backend and ML health diagnostics. |
 
 ---
 
 ## AI Assistant & Bedrock Integration
 
-The platform includes an enterprise conversational AI agent powered by **AWS Bedrock** utilizing **Amazon Nova Lite** (`amazon.nova-lite-v1:0`). Operating in an autonomous **tool-use loop**, the assistant interprets intent, calls backend domain tools, and synthesizes data-backed recommendations.
+The assistant uses **AWS Bedrock** with **Amazon Nova Lite** (`amazon.nova-lite-v1:0`). It runs a tool-use loop: it interprets the request, calls backend domain tools, and writes a response grounded in the returned data.
 
 ### Tool Execution Flow
 
 ```
-User Query: "What is traffic like on Outer Ring Road and will it get worse in 30 minutes?"
+User query: "What is traffic like on Outer Ring Road and will it get worse in 30 minutes?"
    │
    ▼
 POST /api/v1/chat ──► ChatbotService ──► Bedrock Converse API
                                             │
                               ┌─────────────┴─────────────┐
                               ▼                           ▼
-                     Tool 1: get_current_traffic   Tool 2: get_traffic_prediction
+                     Tool: get_current_traffic   Tool: get_traffic_prediction
                      (road: "Outer Ring Road")    (horizon: 30, road: "Outer Ring Road")
                               │                           │
                               └─────────────┬─────────────┘
                                             ▼
-                           Bedrock Synthesizes Live Telemetry
+                           Model synthesizes live telemetry and forecast
                                             │
                                             ▼
-            Response + UI Actions (e.g. FOCUS_MAP lat/lng) returned to Chat UI
+            Response and UI actions (e.g. FOCUS_MAP with lat/lng) returned to the chat UI
 ```
 
 ### Available Domain Tools
 
 | Tool Name | Domain Service | Description |
 |---|---|---|
-| `get_current_traffic` | `TrafficService` | Queries real-time velocity, congestion ratio, and delays across 25 corridors |
-| `get_traffic_incidents` | `IncidentService` | Retrieves active accidents, road closures, and hazard locations with severity |
-| `get_weather` | `WeatherService` | Fetches temperature, precipitation, humidity, wind, and visibility |
-| `get_traffic_prediction` | `PredictionService` | Executes XGBoost inference for 15, 30, or 60-minute forecast horizons |
-| `find_route` | `RouteService` | Computes congestion-penalized routes and alternatives between Bangalore landmarks |
-| `get_traffic_analytics` | `AnalyticsService` | Aggregates citywide congestion averages and bottleneck rankings |
-| `get_alerts` | `AlertsService` | Lists active high-priority traffic hazards and weather warnings |
+| `get_current_traffic` | `TrafficService` | Current speed, congestion ratio, and delays across the 25 corridors |
+| `get_traffic_incidents` | `IncidentService` | Active accidents, closures, and hazards with severity |
+| `get_weather` | `WeatherService` | Temperature, precipitation, humidity, wind, and visibility |
+| `get_traffic_prediction` | `PredictionService` | XGBoost forecasts for 15, 30, or 60 minutes |
+| `find_route` | `RouteService` | Congestion-penalized routes and alternatives between Bangalore landmarks |
+| `get_traffic_analytics` | `AnalyticsService` | Citywide congestion averages and bottleneck rankings |
+| `get_alerts` | `AlertsService` | Active high-priority traffic hazards and weather warnings |
 
 ### Context Memory
-The `ConversationStore` maintains a sliding window of the last 20 messages per `conversation_id`, enabling multi-turn contextual reasoning (e.g., asking *"How is Silk Board?"* followed by *"What about in an hour?"* preserves corridor context).
+`ConversationStore` keeps a sliding window of the most recent 20 messages per `conversation_id` (`CHATBOT_MAX_HISTORY`). This supports multi-turn questions: after asking *"How is Silk Board?"*, a follow-up of *"What about in an hour?"* keeps the corridor context.
 
 ---
 
 ## AI / ML Pipeline
 
 ### Model Architecture
-The traffic prediction engine uses an **XGBoost Regressor** (`xgboost.XGBRegressor`), optimized for tabular spatio-temporal dynamics and non-linear peak-hour congestion patterns with minimal inference overhead.
+The prediction engine uses an **XGBoost Regressor** (`xgboost.XGBRegressor`). Gradient-boosted trees suit tabular spatio-temporal data and non-linear peak-hour patterns, and inference is fast enough to run per request. The deployed build uses the CPU-only `xgboost-cpu` package.
 
 ### Feature Engineering (9 Features)
+
 | Feature | Type | Description |
 |---|---|---|
 | `hour` | `int` (0–23) | Hour of the day in Indian Standard Time (IST) |
 | `day_of_week` | `int` (0–6) | Day of week (Monday = 0, Sunday = 6) |
-| `is_weekend` | `binary` (0/1) | Weekend flag |
+| `is_weekend` | `binary` (0/1) | Weekend indicator |
 | `segment_idx` | `int` (0–24) | Monitored corridor index |
 | `free_flow_speed` | `float` (km/h) | Baseline free-flow design speed |
-| `lag_speed_1h` | `float` (km/h) | Observed speed from the preceding hour |
-| `lag_congestion_1h` | `float` (0–1) | Congestion ratio from the preceding hour |
+| `lag_speed_1h` | `float` (km/h) | Observed speed one hour earlier |
+| `lag_congestion_1h` | `float` (0–1) | Congestion ratio one hour earlier |
 | `temperature` | `float` (°C) | Current ambient temperature |
 | `is_rainy` | `binary` (0/1) | Precipitation indicator |
 
-**Target Variable**: `current_speed` (km/h, clamped between 2 km/h and design free-flow speed).
+**Target variable:** `current_speed` (km/h), clamped between 2 km/h and the design free-flow speed.
 
-### Evaluation & Test Metrics
-Trained and evaluated on a **time-aware chronological split** over 90 days of synthetic Bangalore traffic data (54,000 records) to eliminate data leakage:
-* **Train Set**: Days 0–62 (37,800 samples)
-* **Validation Set**: Days 63–76 (8,400 samples)
-* **Test Set**: Days 77–89 (7,800 samples)
+### Evaluation
 
-| Metric | Result | Operational Meaning |
+The model was trained and evaluated on a **time-aware chronological split** of 90 days of synthetic Bangalore traffic data (54,000 records) to avoid data leakage:
+
+* **Training set:** Days 0–62 (37,800 samples)
+* **Validation set:** Days 63–76 (8,400 samples)
+* **Test set:** Days 77–89 (7,800 samples)
+
+| Metric | Result | Interpretation |
 |---|---|---|
-| **$R^2$ Score** | **0.8911** | ~89.1% of speed variance explained by the model |
+| **R²** | **0.8911** | About 89.1% of the variance in speed is explained by the model |
 | **MAE** | **4.578 km/h** | Mean absolute error between predicted and actual speed |
-| **RMSE** | **5.986 km/h** | Root mean square error with controlled outlier variance |
+| **RMSE** | **5.986 km/h** | Root mean square error; penalizes larger errors more heavily |
 
-### Feature Importance Weights
+### Feature Importance
+
 ```
 lag_speed_1h       0.6154  ██████████████████████████████
 free_flow_speed    0.0977  █████
@@ -320,24 +373,26 @@ temperature        0.0065  ▏
 
 ```
 Frontend:
-├── Framework: Next.js 16.3.5 (App Router, Turbopack)
-├── UI Core: React 19.0.0 & Tailwind CSS
-├── Mapping: Leaflet.js & React-Leaflet
-├── Visualizations: Recharts
-├── State & Cache: TanStack React Query 5
+├── Framework: Next.js 16.3 (App Router, Turbopack)
+├── UI core: React 19.2 and Tailwind CSS 4
+├── Mapping: Leaflet.js and React-Leaflet 5
+├── Charts: Recharts 3
+├── Data fetching and cache: TanStack React Query 5
 └── Icons: Lucide React
 
 Backend:
-├── Framework: FastAPI & Starlette
+├── Framework: FastAPI and Starlette
 ├── Server: Uvicorn (ASGI)
-├── Validation: Pydantic v2
-├── ML Engine: XGBoost, Scikit-learn, Joblib
-├── LLM Integration: AWS Bedrock Runtime (Boto3)
-└── Caching: Cachetools (In-memory TTL)
+├── Validation: Pydantic v2 and pydantic-settings
+├── ML engine: XGBoost (CPU build), scikit-learn, pandas, NumPy, Joblib
+├── LLM integration: AWS Bedrock Runtime (boto3 Converse API)
+├── Caching: cachetools (in-memory TTL)
+└── HTTP client: httpx
 
 Infrastructure:
-├── Containers: Docker & Docker Compose (Multi-stage)
-└── Testing: Pytest (22 API/Integration tests), ESLint
+├── Containers: Docker and Docker Compose (multi-stage builds)
+├── Hosting: Vercel (services configuration in vercel.json)
+└── Testing: pytest (backend), ESLint and TypeScript (frontend)
 ```
 
 ---
@@ -352,48 +407,51 @@ cd TrafficSense-AI
 
 ### 2. Run with Docker Compose (Recommended)
 ```bash
-# Copy backend environment configuration (only if it does not exist yet)
+# Create the backend environment file if it does not exist
 [ -f backend/.env ] || cp backend/.env.example backend/.env
 
-# Optional: bake the TomTom key into the frontend build (host environment variable)
+# Optional: pass the TomTom key to the frontend build (host environment variable)
 export NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key
 
-# Build and start services
+# Build and start the services
 docker-compose up --build
 ```
-* **Web Application**: [http://localhost:3000](http://localhost:3000)
-* **Interactive AI Assistant**: [http://localhost:3000/chat](http://localhost:3000/chat)
-* **Backend health check**: [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health) (`/docs` is disabled because the compose file sets `APP_ENV=production`)
+
+* **Web application:** [http://localhost:3000](http://localhost:3000)
+* **AI assistant:** [http://localhost:3000/chat](http://localhost:3000/chat)
+* **Backend health check:** [http://localhost:8000/api/v1/health](http://localhost:8000/api/v1/health). The interactive API docs at `/docs` are disabled because the Compose file sets `APP_ENV=production`.
 
 ---
 
 ### 3. Manual Local Development
 
 #### Backend Setup
+The backend targets Python 3.12 (pinned in `backend/.python-version`). The Docker images use Python 3.11.
+
 ```bash
 cd backend
-python3 -m venv venv
-source venv/bin/activate          # On Windows: .\venv\Scripts\activate
+python3.12 -m venv venv
+source venv/bin/activate          # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
 
-cp .env.example .env              # Configure AWS credentials if using Bedrock
+cp .env.example .env              # Add AWS credentials if using Bedrock
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Verify backend health:
+Verify the backend is running:
 ```bash
 curl http://localhost:8000/api/v1/health
 ```
 
 #### Frontend Setup
-Requires Node.js 20.9+ (Next.js 16). In a new terminal window:
+Requires Node.js 20.9 or later (Next.js 16). In a new terminal:
 ```bash
 cd frontend
 npm install
 cp .env.local.example .env.local
 npm run dev
 ```
-Access the application at [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -403,76 +461,82 @@ Access the application at [http://localhost:3000](http://localhost:3000).
 .
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/endpoints.py          # REST route declarations (/traffic, /chat, /routes, etc.)
+│   │   ├── api/v1/endpoints.py          # REST route declarations under /api/v1
 │   │   ├── core/
-│   │   │   ├── config.py                # Pydantic BaseSettings & AWS Bedrock configuration
-│   │   │   └── middleware.py            # Structured JSON latency & access logging
+│   │   │   ├── config.py                # Settings, cache TTLs, and Bedrock configuration
+│   │   │   └── middleware.py            # Request logging and latency tracking
 │   │   ├── models/
-│   │   │   ├── artifacts/xgb_speed_model.pkl
-│   │   │   └── schemas.py               # Pydantic schemas (Traffic, Route, Chat, etc.)
+│   │   │   ├── artifacts/xgb_speed_model.pkl   # Trained XGBoost model
+│   │   │   └── schemas.py               # Pydantic schemas (traffic, routes, chat, users)
 │   │   ├── services/
-│   │   │   ├── alerts.py                # Real-time traffic and hazard alerts
-│   │   │   ├── analytics.py             # Citywide traffic aggregations and trends
-│   │   │   ├── chatbot.py               # AWS Bedrock Converse API service & memory
-│   │   │   ├── chatbot_tools.py         # 7 domain tool specifications & execution handlers
-│   │   │   ├── incident.py              # Active road hazards, accidents, and closures
-│   │   │   ├── prediction.py            # XGBoost speed forecasting engine
+│   │   │   ├── alerts.py                # Traffic and hazard alerts
+│   │   │   ├── analytics.py             # Citywide aggregations and trends
+│   │   │   ├── chatbot.py               # Bedrock Converse loop and conversation store
+│   │   │   ├── chatbot_tools.py         # Seven tool specifications and handlers
+│   │   │   ├── incident.py              # Road hazards, accidents, and closures
+│   │   │   ├── prediction.py            # XGBoost forecasting
 │   │   │   ├── route.py                 # Multi-alternative route evaluator
-│   │   │   ├── traffic.py               # 25 Bangalore corridors & diurnal simulation
-│   │   │   ├── user.py                  # User preferences & saved locations
-│   │   │   └── weather.py               # Weather patterns & OpenWeather client
-│   │   └── main.py                      # FastAPI application entry point & CORS
-│   ├── tests/
-│   │   └── test_api.py                  # Pytest test suite (22 passing tests)
+│   │   │   ├── traffic.py               # 25 corridors, TomTom client, and demo simulator
+│   │   │   ├── user.py                  # User preferences and saved locations
+│   │   │   └── weather.py               # Weather data and OpenWeather client
+│   │   └── main.py                      # FastAPI application entry point, middleware, and CORS
+│   ├── tests/                           # pytest suite (77 tests across 13 modules)
+│   ├── .python-version                  # Python 3.12 pin
 │   ├── Dockerfile
 │   ├── requirements.txt
+│   ├── requirements-dev.txt
 │   └── train_model.py                   # Model training script
 ├── frontend/
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── alerts/page.tsx          # Real-time alerts notification feed
-│   │   │   ├── analytics/page.tsx       # Traffic analytics & Recharts visualizations
-│   │   │   ├── chat/page.tsx            # AI Traffic Assistant chat console
-│   │   │   ├── incidents/page.tsx       # Incident directory & severity filters
-│   │   │   ├── map/page.tsx             # Interactive Leaflet traffic map workspace
-│   │   │   ├── predictions/page.tsx     # ML forecast horizons (15/30/60m)
-│   │   │   ├── routes/page.tsx          # Congestion-aware route planner
-│   │   │   ├── settings/page.tsx        # System health & user preferences
-│   │   │   ├── layout.tsx               # Root layout shell
-│   │   │   ├── page.tsx                 # Primary executive dashboard
-│   │   │   └── providers.tsx            # TanStack Query & theme providers
+│   │   ├── app/                         # App Router pages (one folder per route)
+│   │   │   ├── alerts/page.tsx          # Alerts feed
+│   │   │   ├── analytics/page.tsx       # Analytics and charts
+│   │   │   ├── chat/page.tsx            # AI assistant console
+│   │   │   ├── incidents/page.tsx       # Incident directory and filters
+│   │   │   ├── map/page.tsx             # Interactive traffic map
+│   │   │   ├── predictions/page.tsx     # Forecast horizons (15, 30, 60 minutes)
+│   │   │   ├── routes/page.tsx          # Route planner
+│   │   │   ├── settings/page.tsx        # Preferences and system health
+│   │   │   ├── layout.tsx               # Root layout
+│   │   │   ├── page.tsx                 # Dashboard
+│   │   │   └── providers.tsx            # Query client and app providers
 │   │   ├── components/
-│   │   │   ├── alerts/                  # Alert cards and feed components
+│   │   │   ├── alerts/                  # Alert cards
 │   │   │   ├── analytics/               # Distribution, trend, and bottleneck charts
 │   │   │   ├── chatbot/                 # Message bubbles, tool results, conversation list
 │   │   │   ├── dashboard/               # Metric cards, previews, and weather widgets
-│   │   │   ├── incidents/               # Incident cards and classification filters
-│   │   │   ├── layout/                  # Collapsible sidebar, header, command menu (⌘K)
-│   │   │   ├── predictions/             # Forecast cards and projection timeline
+│   │   │   ├── incidents/               # Incident cards
+│   │   │   ├── layout/                  # Sidebar, header, page container, command menu (⌘K)
+│   │   │   ├── map/                     # Map tile layer
+│   │   │   ├── predictions/             # Forecast cards and chart
 │   │   │   ├── routes/                  # Route cards and preview map
-│   │   │   ├── traffic/                 # Road details drawer, traffic map, legend
-│   │   │   └── ui/                      # Base UI design system components
+│   │   │   ├── traffic/                 # Traffic map, road details, legend, status cards
+│   │   │   └── ui/                      # Base UI components
 │   │   ├── lib/
-│   │   │   ├── api/client.ts            # Typed HTTP & chat API client
-│   │   │   ├── congestion.ts            # Semantic traffic status tokens & helpers
-│   │   │   └── utils.ts                 # ClassName merger
+│   │   │   ├── api/client.ts            # Typed HTTP and chat API client
+│   │   │   ├── congestion.ts            # Congestion tiers, colors, and labels
+│   │   │   ├── map-config.ts            # Map tile provider selection
+│   │   │   └── utils.ts                 # Class name utility
 │   │   └── types/index.ts               # TypeScript data definitions
 │   ├── Dockerfile
 │   ├── package.json
-│   └── next.config.ts
-├── Dockerfile                           # Production multi-stage unified container
+│   └── next.config.ts                   # API rewrite to the backend
+├── Dockerfile                           # Unified production image (backend and frontend)
 ├── docker-compose.yml                   # Multi-service composition
+├── docker-compose.override.yml.example  # Development override template
 ├── docker-entrypoint.sh                 # Container process supervisor
+├── vercel.json                          # Vercel services and routing
+├── app.py                               # Legacy standalone Streamlit prototype (not part of the platform)
 ├── LICENSE
 ├── README.md
-└── run.md                               # Comprehensive operational runbook
+└── run.md                               # Operational runbook
 ```
 
 ---
 
 ## API Reference
 
-All responses conform to a unified standard envelope:
+All responses use a common envelope:
 ```json
 {
   "data": { ... },
@@ -482,32 +546,32 @@ All responses conform to a unified standard envelope:
 }
 ```
 
-### Endpoints Catalog
+### Endpoints
 
 | Method | Endpoint | Description | Parameters / Payload |
 |---|---|---|---|
-| `GET` | `/api/v1/health` | System health check and status | None |
-| `GET` | `/api/v1/traffic/current` | Telemetry for all 25 Bangalore corridors | None |
-| `GET` | `/api/v1/traffic/incidents` | Active traffic incidents & hazards | Query: `severity`, `incident_type` |
-| `GET` | `/api/v1/weather` | Current Bangalore weather metrics | None |
-| `GET` | `/api/v1/predictions` | Multi-horizon ML speed forecasts | Query: `horizon` (15/30/60), `segment_id` |
-| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (`origin_lat`, `origin_lng`, `destination_lat`, `destination_lng`, optional `departure_time`, `avoid_congestion`, `avoid_incidents`) |
+| `GET` | `/api/v1/health` | System health check | None |
+| `GET` | `/api/v1/traffic/current` | Current telemetry for all 25 corridors | None |
+| `GET` | `/api/v1/traffic/incidents` | Active incidents and hazards | Query: `severity`, `incident_type` |
+| `GET` | `/api/v1/weather` | Current Bangalore weather | None |
+| `GET` | `/api/v1/predictions` | Multi-horizon speed forecasts | Query: `horizon` (15, 30, or 60), `segment_id` |
+| `POST` | `/api/v1/routes` | Alternative route recommendations | Body: `RouteRequest` (`origin_lat`, `origin_lng`, `destination_lat`, `destination_lng`, and optional `departure_time`, `avoid_congestion`, `avoid_incidents`) |
 | `GET` | `/api/v1/analytics` | Aggregated citywide statistics | None |
-| `GET` | `/api/v1/alerts` | Urgent alerts & notifications | Query: `alert_type`, `severity` |
-| `GET` | `/api/v1/users/preferences` | Retrieve user preferences & saved hubs | None |
-| `PUT` | `/api/v1/users/preferences` | Update notifications & unit preferences | Body: `UserPreferences` |
-| `POST` | `/api/v1/chat` | Send query to Bedrock AI Assistant | Body: `ChatRequest` (`message`, `conversation_id`) |
-| `DELETE` | `/api/v1/chat/{conversation_id}` | Reset context memory for a session | Path: `conversation_id` |
+| `GET` | `/api/v1/alerts` | Alerts and notifications | Query: `alert_type`, `severity` |
+| `GET` | `/api/v1/users/preferences` | User preferences and saved locations | None |
+| `PUT` | `/api/v1/users/preferences` | Update notification and unit preferences | Body: `UserPreferencesUpdate` |
+| `POST` | `/api/v1/chat` | Send a message to the AI assistant | Body: `ChatRequest` (`message`, `conversation_id`) |
+| `DELETE` | `/api/v1/chat/{conversation_id}` | Clear conversation memory for a session | Path: `conversation_id` |
 
-* **Interactive Swagger UI** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/docs](http://localhost:8000/docs)
-* **ReDoc Specification** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/redoc](http://localhost:8000/redoc)
+* **Swagger UI** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/docs](http://localhost:8000/docs)
+* **ReDoc** (development only; disabled when `APP_ENV=production`): [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
 ---
 
 ## Testing & Quality Assurance
 
-### Backend Test Suite (Pytest)
-The test suite consists of **22 automated unit and integration tests** verifying endpoints, models, routing logic, conversation memory, and tool execution:
+### Backend Test Suite (pytest)
+The backend suite has **77 tests across 13 modules**. They cover endpoints, input validation, models, route logic, the chat history and deadline behavior, tool execution, partial live data handling, user preferences, and regression cases.
 
 ```bash
 cd backend
@@ -515,39 +579,15 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-```
-======================== 22 passed, 2 warnings in 3.64s ========================
-tests/test_api.py::test_health_check PASSED
-tests/test_api.py::test_root PASSED
-tests/test_api.py::test_get_current_traffic PASSED
-tests/test_api.py::test_get_incidents PASSED
-tests/test_api.py::test_get_incidents_with_filter PASSED
-tests/test_api.py::test_get_weather PASSED
-tests/test_api.py::test_get_predictions PASSED
-tests/test_api.py::test_get_predictions_invalid_horizon PASSED
-tests/test_api.py::test_get_predictions_30min PASSED
-tests/test_api.py::test_get_predictions_60min PASSED
-tests/test_api.py::test_post_routes PASSED
-tests/test_api.py::test_get_analytics PASSED
-tests/test_api.py::test_get_alerts PASSED
-tests/test_api.py::test_get_user_preferences PASSED
-tests/test_api.py::test_update_user_preferences PASSED
-tests/test_api.py::test_chat_endpoint_exists PASSED
-tests/test_api.py::test_chat_invalid_request PASSED
-tests/test_api.py::test_chat_missing_body PASSED
-tests/test_api.py::test_chat_delete_conversation PASSED
-tests/test_api.py::test_chatbot_tools_execute PASSED
-tests/test_api.py::test_chatbot_conversation_store PASSED
-tests/test_api.py::test_chat_root_endpoint_includes_chat PASSED
-```
+Latest run: `77 passed, 1 warning` (a deprecation notice from the `httpx` integration in Starlette's test client).
 
-### Frontend Code Quality & Build Verification
-The frontend code adheres strictly to TypeScript and ESLint standards with zero compiler warnings or errors:
+### Frontend Quality Checks
+The frontend uses TypeScript and ESLint:
 
 ```bash
 cd frontend
-npm run lint       # Result: 0 errors, 0 warnings
-npm run build      # Result: All 9 app pages (src/app/**/page.tsx) build cleanly
+npm run lint      # ESLint
+npm run build     # Production build of all app routes
 ```
 
 ---
@@ -555,34 +595,37 @@ npm run build      # Result: All 9 app pages (src/app/**/page.tsx) build cleanly
 ## Deployment
 
 ### Option 1: Multi-Container Orchestration (`docker-compose.yml`)
-Deploys isolated frontend and backend containers connected via an internal Docker bridge network with health checking:
+Runs the frontend and backend as separate containers on an internal network, with health checks on both:
 ```bash
 docker-compose up --build -d
 ```
 
 ### Option 2: Unified Production Container (`Dockerfile`)
-Packages the FastAPI backend and the Next.js production server (`next start`, not a static export) into a single image. `docker-entrypoint.sh` starts the backend, waits for its health endpoint, then starts the frontend. The containers run as a non-root user.
+Packages the FastAPI backend and the Next.js production server (`next start`, not a static export) into one image. `docker-entrypoint.sh` starts the backend, waits for its health endpoint, and then starts the frontend. The processes run as a non-root user.
 ```bash
 docker build --build-arg NEXT_PUBLIC_TOMTOM_API_KEY=your_tomtom_key -t trafficsense-ai:latest .
-# Remote deployment: also add --build-arg NEXT_PUBLIC_API_URL=https://api.example.com (the URL the browser calls)
+# Remote deployment: also pass --build-arg NEXT_PUBLIC_API_URL=https://api.example.com (the URL the browser calls)
 docker run -p 3000:3000 -p 8000:8000 --env-file backend/.env trafficsense-ai:latest
 ```
-`NEXT_PUBLIC_TOMTOM_API_KEY` is baked into the frontend bundle at build time, so pass it as a build argument. Omit it to fall back to the non-TomTom map tiles. The command above is local-only: `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000`, so a browser on another machine would call its own localhost. For a remote deployment, pass `NEXT_PUBLIC_API_URL` as a build argument too.
+`NEXT_PUBLIC_TOMTOM_API_KEY` is compiled into the frontend bundle at build time, so pass it as a build argument. Omit it to use OpenStreetMap tiles. The command above is for local use only: `NEXT_PUBLIC_API_URL` defaults to `http://localhost:8000`, so a browser on another machine would call its own localhost. For remote deployments, pass `NEXT_PUBLIC_API_URL` as a build argument as well.
 
-### Docker environment variables
+### Option 3: Vercel
+`vercel.json` defines two services. The frontend (`frontend/`, Next.js) serves all routes, and the backend (`backend/`, entrypoint `app.main:app`, FastAPI) serves `/api/*`. Because requests are same-origin, `NEXT_PUBLIC_API_URL` can stay unset. The backend is kept under Vercel's function size limit by using the CPU-only XGBoost build and Python 3.12.
+
+### Docker Environment Variables
 
 | Variable | Set where | Purpose |
 |---|---|---|
-| `NEXT_PUBLIC_TOMTOM_API_KEY` | Host environment (read by `docker-compose.yml` as a frontend build arg) | Embedded in the frontend bundle at build time, so it is public. Rebuild after changing it. Restrict the key by domain in the TomTom dashboard. |
-| `NEXT_PUBLIC_API_URL` | Build arg (default `http://localhost:8000`) | Backend URL the browser calls. If unset, the browser uses relative `/api/v1` paths, which Next proxies to `BACKEND_URL` (default `http://localhost:8000`, fixed at build time). |
+| `NEXT_PUBLIC_TOMTOM_API_KEY` | Host environment (read by `docker-compose.yml` as a frontend build argument) | Embedded in the frontend bundle at build time, so it is public. Rebuild after changing it. Restrict the key by domain in the TomTom dashboard. |
+| `NEXT_PUBLIC_API_URL` | Build argument (default `http://localhost:8000`) | Backend URL that the browser calls. If unset, the browser uses relative `/api/v1` paths, which Next.js proxies to `BACKEND_URL` (default `http://localhost:8000`, fixed at build time). |
 | `APP_ENV` | Set to `production` in the Dockerfiles and `docker-compose.yml` | `production` disables `/docs` and `/redoc` and forces `DEBUG` off. |
 | `DEBUG` | Image default `false` | Ignored while `APP_ENV=production`. |
-| `CORS_ORIGINS` | Runtime (`backend/.env` or `-e`) | Comma-separated allowed origins. |
-| `BACKEND_HEALTH_URL`, `BACKEND_WAIT_TIMEOUT` | Runtime, unified container only | Health URL and seconds that `docker-entrypoint.sh` waits for the backend. |
+| `CORS_ORIGINS` | Runtime (`backend/.env` or `-e`) | Comma-separated list of allowed origins. |
+| `BACKEND_HEALTH_URL`, `BACKEND_WAIT_TIMEOUT` | Runtime, unified container only | Health URL and timeout in seconds that `docker-entrypoint.sh` uses when waiting for the backend. |
 
-### Docker development override
+### Docker Development Override
 
-`docker-compose.yml` does not bind-mount the source tree. The backend runs the code baked into the image as the non-root `app` user (uid 10001), so a host bind mount is not used by default: host files owned by another uid cannot be written by that user and the mount hides the image's `/app` contents. For live-reload development, create a `docker-compose.override.yml` next to `docker-compose.yml` (keep it uncommitted):
+`docker-compose.yml` does not mount the source tree. The backend runs the code baked into the image as the non-root `app` user (uid 10001). A host bind mount is not used by default, because host files owned by another user cannot be written by that user, and the mount hides the image's `/app` contents. For live-reload development, create a `docker-compose.override.yml` next to `docker-compose.yml` (keep it out of version control), using `docker-compose.override.yml.example` as a template:
 
 ```yaml
 services:
@@ -594,31 +637,31 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 ```
 
-Compose loads this file automatically with `docker-compose up`. Remove it for production-style runs.
+Docker Compose loads this file automatically with `docker-compose up`. Remove it for production-style runs.
 
 ---
 
-## Documentation & Operational Runbook
+## Documentation
 
-* **Operational Runbook**: See [run.md](./run.md) for full commands, incident handling, and environment variables.
-* **Architecture Articles & Writeups**: Read the complete engineering overview on [Hashnode](https://hashnode.com/@Shashwat56).
+* **Operational runbook:** [run.md](./run.md) covers the full setup, commands, incident handling, and environment variables.
+* **Engineering write-up:** [Hashnode](https://hashnode.com/@Shashwat56)
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License** — see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the **MIT License**. See the [LICENSE](./LICENSE) file for details.
 
 ---
 
 ## Contact & Author
 
 ### Shashwat
-**Machine Learning Engineer \| Scalable AI Systems**
+**Machine Learning Engineer | Scalable AI Systems**
 
-* 🔹 **ML Systems**: Computer Vision, NLP, Spatio-Temporal Forecasting, Data Pipelines
-* 🔹 **Full Lifecycle**: Model Training $\rightarrow$ Production Serving $\rightarrow$ Enterprise UI
-* 🔹 **Backend & Cloud**: Python, FastAPI, Node.js, Docker, AWS Bedrock
+* **ML systems:** Computer vision, NLP, spatio-temporal forecasting, and data pipelines
+* **Full lifecycle:** Model training, production serving, and enterprise user interfaces
+* **Backend and cloud:** Python, FastAPI, Node.js, Docker, and AWS Bedrock
 
 <p>
   <a href="https://github.com/Shashwat-19"><img src="https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"></a>
